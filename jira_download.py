@@ -1,31 +1,37 @@
 import requests
 import json
 import pandas as pd
+import os
+from datetime import datetime
 
 #set variables
 all_issues = []
 next_page_token = None
 max_results = 100
 
-#Jira connection details
-domain = 'mkrubs.atlassian.net'
-email = 'mkrubs@gmail.com'
-filter_id = '10034'
-api_token = 'ATATT3xFfGF05JD79QsVc3P4GWovSKzTd0n13vB-Hgjp_qmxVgYYVRSSXPFunYbDVAXHw038yqzKQ8wAblAk9KuFf-5dCdOIcVn9f5RQEOopNkL5GWLQAv_L_OVxqRL3Vv5Z4K-qpx-cTiDTXexVlBP_oOaBIFOe1SFUNmPWQarMUPM4if1XTAY=C832025A' 
+# Generate a clean, human-readable timestamp string (e.g., "June 07, 2026 at 04:30 PM EST")
+# Note: GitHub Actions runs on UTC time, so we append "UTC" to be accurate
+last_updated_str = datetime.utcnow().strftime("%B %d, %Y at %I:%M %p UTC")
 
-url = f'https://{domain}/rest/api/3/search/jql'
+#Jira connection details
+JIRA_URL = 'mkrubs.atlassian.net'
+JIRA_EMAIL = 'mkrubs@gmail.com'
+JIRA_TOKEN = 'ATATT3xFfGF0-fT3a4d3CVwZOf8lW6y1bWuHO3GxqTNzazuslc8DX_69zUMygkFCmwYXnxO7E0krtxGN8Yj14sNh1UTCtjsxPkinirCvBF_nIxVXV4lQaAfwj9-emF5T-pObbIaPWa5MK6y8f6DxnySdAN7eRjG8M_U-B8nOA3zVh535EFO5BO4=6E5B6D8E'
+FILTER_ID = '10034'
+
+url = f'https://{JIRA_URL}/rest/api/3/search/jql'
 
 headers = {
     'Accept': 'application/json',
     'Content-Type': 'application/json'
 }
 
-auth = (email, api_token)
+auth = (JIRA_EMAIL, JIRA_TOKEN)
 
 #Max Jira results is 100. Loop can return more than 100
 while True:
     payload = {
-        'jql': f'filter = {filter_id}',
+        'jql': f'filter = {FILTER_ID}',
         'maxResults': max_results,
         'fields': [
             'summary',
@@ -134,14 +140,14 @@ if all_issues:
         <title>Jira Application Source Pipeline</title>
         <script type='text/javascript' src='https://www.gstatic.com/charts/loader.js'></script>
         <script type='text/javascript'>
-          // Initialize and request the specific visualization packages we need
-          google.charts.load('current', {{'packages':['sankey']}});
-          google.charts.setOnLoadCallback(drawChart);
+        // Initialize and request the specific visualization packages we need
+        google.charts.load('current', {{'packages':['sankey']}});
+        google.charts.setOnLoadCallback(drawChart);
 
-          function drawChart() {{
+        function drawChart() {{
             var data = new google.visualization.DataTable();
             
-            // Map the layout schema for Google Charts. 
+            // Map the layout schema for Google Charts
             data.addColumn('string', 'Application Source');
             data.addColumn('string', 'Current Funnel Status');
             data.addColumn('number', 'Total Count');
@@ -150,72 +156,70 @@ if all_issues:
             data.addRows({chart_data});
 
             // 1. HARDCODE YOUR EXACT COLOR MAP DICTIONARY
-            // This explicitly links each unique Jira text string directly to a hex color code.
-            // Capitalization and spacing must match your Jira fields exactly!
+            // Explicitly links text strings directly to a hex color code.
+            // Spelling matches your clean Jira strings perfectly!
             var colorMap = {{
-              'Builtin': '#07006c',       // Builtin Dark Blue
-              'Linkedin': '#0072b1',      // LinkedIn Blue
-              'Me': '#27a6f5',            // Me Light Blue
-              'Simplify': '#3bc4d7',      // Simplify Teal
-              
-              'Applied': '#2ecc71',       // Applied Green
-              'No Response': '#f1c40f',   // No Response Yellow
-              'Rejected': '#e74c3c'       // Rejected Red
+            'Builtin': '#07006c',       // Builtin Dark Blue
+            'Linkedin': '#0072b1',      // LinkedIn Blue
+            'Me': '#27a6f5',            // Me Light Blue
+            'Simplify': '#3bc4d7',      // Simplify Teal
+            
+            'Applied': '#2ecc71',       // Applied Green
+            'No Response': '#f1c40f',   // No Response Yellow
+            'Rejected': '#e74c3c'       // Rejected Red
             }};
 
             // 2. DYNAMICALLY BUILD THE COLOR PALETTE FOR GOOGLE CHARTS
-            // This reads your live data array, tracks the rendering order Google uses, 
-            // and maps the exact color code to prevent shifting nodes.
+            // Reads your live dataset layout, tracks node initialization order, 
+            // and generates the corresponding color layout sequence dynamically.
             var dynamicColors = [];
             var coloredNodes = {{}}; 
 
-            // 2. DYNAMICALLY BUILD THE COLOR PALETTE FOR GOOGLE CHARTS
-            var dynamicColors = [];
-            var coloredNodes = {{}}; 
-
-            // Scan through the unique pairs in the dataset rows
             for (var i = 0; i < data.getNumberOfRows(); i++) {{
-              var sourceNode = data.getValue(i, 0);
-              var statusNode = data.getValue(i, 1);
-              
-              // If we haven't assigned a color to this Source node yet, map it now
-              if (!coloredNodes[sourceNode]) {{
-                dynamicColors.push(colorMap[sourceNode] || '#cccccc'); 
+            var sourceNode = data.getValue(i, 0);
+            var statusNode = data.getValue(i, 1);
+            
+            // Map Source color if unassigned
+            if (!coloredNodes[sourceNode]) {{
+                dynamicColors.push(colorMap[sourceNode] || '#cccccc'); // Fallback to gray if string is unmapped
                 coloredNodes[sourceNode] = true;
-              }} // <--- CHANGED TO DOUBLE BRACKETS
-              
-              // If we haven't assigned a color to this Status node yet, map it now
-              if (!coloredNodes[statusNode]) {{
-                dynamicColors.push(colorMap[statusNode] || '#cccccc'); 
+            }}
+            
+            // Map Status color if unassigned
+            if (!coloredNodes[statusNode]) {{
+                dynamicColors.push(colorMap[statusNode] || '#cccccc'); // Fallback to gray if string is unmapped
                 coloredNodes[statusNode] = true;
-              }} // <--- CHANGED TO DOUBLE BRACKETS
-            }} // <--- THIS WAS LINE 181! CHANGED TO DOUBLE BRACKETS
+            }}
+            }}
 
             // 3. Set layout configurations, sizing options, and inject the dynamic palette array
             var options = {{
-              width: 950,
-              height: 550,
-              sankey: {{
+            width: 950,
+            height: 550,
+            sankey: {{
                 node: {{ 
-                  colors: dynamicColors, // Passes the beautifully mapped array right to the canvas
-                  label: {{ fontSize: 14, fontFamily: 'Arial', labelPadding: 15 }},
-                  padding: 35,
-                  interactivity: true
+                colors: dynamicColors, // Passes the beautifully mapped array right to the canvas
+                label: {{ fontSize: 14, fontFamily: 'Arial', labelPadding: 15 }},
+                padding: 35,
+                interactivity: true
                 }},
                 link: {{ colorMode: 'gradient' }} // Blends node colors seamlessly across flow lines
-              }}
+            }}
             }};
 
             // Instantiate and display the chart container targeting our DOM container div id
             var chart = new google.visualization.Sankey(document.getElementById('sankey_view'));
             chart.draw(data, options);
-          }}
+        }}
         </script>
     </head>
     <body style='font-family: Arial, sans-serif; background-color: #f4f6f9; padding: 30px; display: flex; flex-direction: column; align-items: center;'>
         <div style='width: 950px; text-align: left; margin-bottom: 15px;'>
             <h2 style='color: #2c3e50; margin-bottom: 5px;'>Jira Application Source Pipeline</h2>
-            <p style='color: #7f8c8d; margin-top: 0; font-size: 14px;'>Interactive Sankey mapping application channels straight to real-time funnel milestones.</p>
+            <p style='color: #7f8c8d; margin-top: 0; font-size: 14px;'>
+                Interactive Sankey mapping application channels straight to real-time funnel milestones.
+                <span style='display: block; margin-top: 8px; color: #95a5a6; font-weight: bold;'>⏰ Last Synchronized: {last_updated_str}</span>
+            </p>
         </div>
         
         <div id='sankey_view' style='width: 950px; height: 550px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); background: white; border-radius: 8px; padding: 15px;'></div>
