@@ -160,6 +160,7 @@ if all_issues:
             'Simplify': '#3bc4d7',
             
             'Applied': '#2ecc71',
+            'In Queue/Not Started': '#696969',
             'In Progress': '#696969',
             'No Response': '#f1c40f',
             'Rejected': '#e74c3c'
