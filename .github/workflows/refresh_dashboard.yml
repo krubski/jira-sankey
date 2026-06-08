@@ -4,10 +4,16 @@ on:
   schedule:
     # Runs automatically every single day at 8:00 AM UTC (4:00 AM EST)
     - cron: '0 8 * * *'
-  workflow_dispatch: # Adds a manual "Run workflow" button on GitHub so you can trigger it instantly anytime
+  workflow_dispatch: # Adds the manual "Run workflow" button in GitHub
 
 permissions:
-  contents: write # Gives the cloud runner permission to commit the HTML file to your repo
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -28,16 +34,20 @@ jobs:
 
     - name: Run Jira Data Pipeline
       env:
-        # This securely injects your hidden GitHub Secrets into Python's environment variables
         JIRA_URL: ${{ secrets.JIRA_URL }}
         JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
         JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         JIRA_FILTER_ID: ${{ secrets.JIRA_FILTER_ID }}
-      run: python jira_download.py
+      run: python -u jira_download.py
 
-    - name: Host HTML to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4
+    - name: Prepare Web Asset
+      run: mv application_sankey.html index.html
+
+    - name: Upload Pages Artifact
+      uses: actions/upload-pages-artifact@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: .
-        keep_files: true
+        path: '.'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
