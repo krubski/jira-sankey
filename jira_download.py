@@ -2,16 +2,15 @@ import requests
 import json
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 #set variables
 all_issues = []
 next_page_token = None
 max_results = 100
 
-# Generate a clean, human-readable timestamp string (e.g., "June 07, 2026 at 04:30 PM EST")
-# Note: GitHub Actions runs on UTC time, so we append "UTC" to be accurate
-last_updated_str = datetime.utcnow().strftime("%B %d, %Y at %I:%M %p UTC")
+# Grab the exact frozen moment the script runs in the cloud in raw ISO format for JavaScript conversion
+current_utc_iso = datetime.now(timezone.utc).isoformat()
 
 #Jira connection details
 JIRA_URL = os.environ.get('JIRA_URL')
@@ -115,8 +114,6 @@ if all_issues:
     ]
     df_clean = df_clean.reindex(columns=desired_order)
 
-#    print(df_clean)
-
     #Convert types directly on df_clean to prep for Sankey
     df_clean['Source'] = df_clean['Source'].astype(str)
     df_clean['Status'] = df_clean['Status'].astype(str)
@@ -156,22 +153,19 @@ if all_issues:
             data.addRows({chart_data});
 
             // 1. HARDCODE YOUR EXACT COLOR MAP DICTIONARY
-            // Explicitly links text strings directly to a hex color code.
-            // Spelling matches your clean Jira strings perfectly!
             var colorMap = {{
-            'Builtin': '#07006c',       // Builtin Dark Blue
-            'Linkedin': '#0072b1',      // LinkedIn Blue
-            'Me': '#27a6f5',            // Me Light Blue
-            'Simplify': '#3bc4d7',      // Simplify Teal
+            'Builtin': '#07006c',
+            'Linkedin': '#0072b1',
+            'Me': '#27a6f5',
+            'Simplify': '#3bc4d7',
             
-            'Applied': '#2ecc71',       // Applied Green
-            'No Response': '#f1c40f',   // No Response Yellow
-            'Rejected': '#e74c3c'       // Rejected Red
+            'Applied': '#2ecc71',
+            'In Progress': '#696969',
+            'No Response': '#f1c40f',
+            'Rejected': '#e74c3c'
             }};
 
             // 2. DYNAMICALLY BUILD THE COLOR PALETTE FOR GOOGLE CHARTS
-            // Reads your live dataset layout, tracks node initialization order, 
-            // and generates the corresponding color layout sequence dynamically.
             var dynamicColors = [];
             var coloredNodes = {{}}; 
 
@@ -217,12 +211,22 @@ if all_issues:
         <div style='width: 950px; text-align: left; margin-bottom: 15px;'>
             <h2 style='color: #2c3e50; margin-bottom: 5px;'>Jira Application Source Pipeline</h2>
             <p style='color: #7f8c8d; margin-top: 0; font-size: 14px;'>
-                Interactive Sankey mapping application channels straight to real-time funnel milestones.
-                <span style='display: block; margin-top: 8px; color: #95a5a6; font-weight: bold;'>⏰ Last Synchronized: {last_updated_str}</span>
+                Interactive Sankey mapping application channels straight to real-time outcomes.
+                <span style='display: block; margin-top: 8px; color: #95a5a6; font-weight: bold;'>
+                    ⏰ Last Synchronized: <span id="local-timestamp">Calculating local time...</span>
+                </span>
             </p>
         </div>
         
         <div id='sankey_view' style='width: 950px; height: 550px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); background: white; border-radius: 8px; padding: 15px;'></div>
+
+        <script>
+            const pipelineUtcTime = new Date("{current_utc_iso}");
+            document.getElementById("local-timestamp").innerText = pipelineUtcTime.toLocaleString(undefined, {{
+                dateStyle: "long",
+                timeStyle: "short"
+            }});
+        </script>
     </body>
     </html>
     """

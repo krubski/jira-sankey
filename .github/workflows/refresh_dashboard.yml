@@ -3,7 +3,7 @@ name: Automated Jira Sankey Sync
 on:
   schedule:
     # Runs automatically every single day at 8:00 AM UTC (4:00 AM EST)
-    - cron: '0 8 * * *'
+    - cron: '0 * * * *'
   workflow_dispatch: # Adds the manual "Run workflow" button on GitHub
 
 permissions:
