@@ -14,10 +14,10 @@ max_results = 100
 last_updated_str = datetime.utcnow().strftime("%B %d, %Y at %I:%M %p UTC")
 
 #Jira connection details
-JIRA_URL = 'mkrubs.atlassian.net'
-JIRA_EMAIL = 'mkrubs@gmail.com'
-JIRA_TOKEN = 'ATATT3xFfGF0-fT3a4d3CVwZOf8lW6y1bWuHO3GxqTNzazuslc8DX_69zUMygkFCmwYXnxO7E0krtxGN8Yj14sNh1UTCtjsxPkinirCvBF_nIxVXV4lQaAfwj9-emF5T-pObbIaPWa5MK6y8f6DxnySdAN7eRjG8M_U-B8nOA3zVh535EFO5BO4=6E5B6D8E'
-FILTER_ID = '10034'
+JIRA_URL = os.environ.get('JIRA_URL')
+JIRA_EMAIL = os.environ.get('JIRA_EMAIL')
+JIRA_TOKEN = os.environ.get('JIRA_TOKEN') 
+JIRA_FILTER_ID = os.environ.get('JIRA_FILTER_ID')
 
 url = f'https://{JIRA_URL}/rest/api/3/search/jql'
 
@@ -31,7 +31,7 @@ auth = (JIRA_EMAIL, JIRA_TOKEN)
 #Max Jira results is 100. Loop can return more than 100
 while True:
     payload = {
-        'jql': f'filter = {FILTER_ID}',
+        'jql': f'filter = {JIRA_FILTER_ID}',
         'maxResults': max_results,
         'fields': [
             'summary',
