@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 application_sankey.html
 .env
+.vscode/
+.venv/
