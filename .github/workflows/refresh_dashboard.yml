@@ -2,9 +2,11 @@ name: Automated Jira Sankey Sync
 
 on:
   schedule:
-    # Runs automatically every single day at 8:00 AM UTC (4:00 AM EST)
-    - cron: '30 * * * *'
+    # Backup passive sync at an off-peak minute
+    - cron: '42 * * * *'
   workflow_dispatch: # Adds the manual "Run workflow" button on GitHub
+  repository_dispatch:
+    types: [jira_update] # 🌟 This tells GitHub to instantly run when Jira sends a webhook
 
 permissions:
   contents: read
