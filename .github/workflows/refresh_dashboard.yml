@@ -4,7 +4,7 @@ on:
   schedule:
     # Runs automatically every single day at 8:00 AM UTC (4:00 AM EST)
     - cron: '0 8 * * *'
-  workflow_dispatch: # Adds the manual "Run workflow" button in GitHub
+  workflow_dispatch: # Adds the manual "Run workflow" button on GitHub
 
 permissions:
   contents: read
@@ -32,6 +32,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests pandas
 
+    - name: Clean Old Web Assets
+      run: rm -f index.html application_sankey.html
+
     - name: Run Jira Data Pipeline
       env:
         JIRA_URL: ${{ secrets.JIRA_URL }}
@@ -41,7 +44,14 @@ jobs:
       run: python -u jira_download.py
 
     - name: Prepare Web Asset
-      run: mv application_sankey.html index.html
+      run: |
+        if [ -f "application_sankey.html" ]; then
+          mv application_sankey.html index.html
+          echo "✅ Successfully mapped pipeline output to index.html"
+        else
+          echo "❌ Critical Error: Script exited but application_sankey.html was not found!"
+          exit 1
+        fi
 
     - name: Upload Pages Artifact
       uses: actions/upload-pages-artifact@v3
