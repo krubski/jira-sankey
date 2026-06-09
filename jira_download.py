@@ -133,7 +133,19 @@ if all_issues:
         elif source.lower() == 'networking':
             source = 'Networking'
             
-        middle_node = f"{source} (Applied)"
+        # VISUAL MASKING: Assign zero-width spaces (\u200b) to distinguish nodes.
+        if source == 'Builtin':
+            middle_node = '(Applied)'
+        elif source == 'LinkedIn':
+            middle_node = '(Applied)\u200b'
+        elif source == 'Me':
+            middle_node = '(Applied)\u200b\u200b'
+        elif source == 'Networking':
+            middle_node = '(Applied)\u200b\u200b\u200b'
+        elif source == 'Simplify':
+            middle_node = '(Applied)\u200b\u200b\u200b\u200b'
+        else:
+            middle_node = f"{source} (Applied)"
 
         # --- CONDITION 1: Active "Applied" items ---
         if status == 'Applied':
@@ -149,13 +161,26 @@ if all_issues:
             pipeline_rows.append({'Source': source, 'Target': middle_node, 'Weight': 1})
             pipeline_rows.append({'Source': middle_node, 'Target': 'Application Rejected', 'Weight': 1})
 
+        # --- CONDITION 4: Active "Screened" status ---
+        elif status == 'Screened':
+            pipeline_rows.append({'Source': source, 'Target': middle_node, 'Weight': 1})
+            pipeline_rows.append({'Source': middle_node, 'Target': 'Screened', 'Weight': 1})
+
     # Convert row entries into a clean DataFrame and aggregate the totals
     if pipeline_rows:
         final_pipeline = pd.DataFrame(pipeline_rows)
         final_pipeline = final_pipeline.groupby(['Source', 'Target']).size().reset_index(name='Weight')
         
-        # Sort values cleanly by data lineage
-        final_pipeline = final_pipeline.sort_values(by=['Source', 'Target'], ascending=[True, True])
+        # Add explicit hop ranking to keep things visually square
+        final_pipeline['Pipeline_Hop'] = final_pipeline['Source'].apply(lambda x: 2 if '(Applied)' in x else 1)
+        
+        # Prioritize Hop tier, then arrange by source channels
+        final_pipeline = final_pipeline.sort_values(
+            by=['Pipeline_Hop', 'Source', 'Target'], 
+            ascending=[True, True, True]
+        )
+        
+        final_pipeline = final_pipeline.drop(columns=['Pipeline_Hop'])
         chart_data = final_pipeline.values.tolist()
     else:
         chart_data = []
@@ -182,7 +207,7 @@ if all_issues:
             
             data.addRows({chart_data});
 
-            // HARDCODE COLOR MAP DICTIONARY
+            // HARDCODE COLOR MAP DICTIONARY (Mappings synchronized with zero-width strings)
             var colorMap = {{
             'Builtin': '#07006c',
             'LinkedIn': '#0072b1',
@@ -190,13 +215,14 @@ if all_issues:
             'Networking': '#fa9214',
             'Simplify': '#3bc4d7',
             
-            'Builtin (Applied)': '#07006c',
-            'LinkedIn (Applied)': '#0072b1',
-            'Me (Applied)': '#27a6f5',
-            'Networking (Applied)': '#fa9214',
-            'Simplify (Applied)': '#3bc4d7',
+            '(Applied)': '#07006c',
+            '(Applied)\\u200b': '#0072b1',
+            '(Applied)\\u200b\\u200b': '#27a6f5',
+            '(Applied)\\u200b\\u200b\\u200b': '#fa9214',
+            '(Applied)\\u200b\\u200b\\u200b\\u200b': '#3bc4d7',
             
             'No Response': '#f1c40f',
+            'Screened': '#2ecc71',
             'Application Rejected': '#e74c3c'
             }};
 
