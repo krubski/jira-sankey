@@ -4,7 +4,7 @@ import pandas as pd
 import os
 from datetime import datetime, timezone
 
-#set variables
+# Set variables
 all_issues = []
 next_page_token = None
 max_results = 100
@@ -12,7 +12,7 @@ max_results = 100
 # Grab the exact frozen moment the script runs in the cloud in raw ISO format for JavaScript conversion
 current_utc_iso = datetime.now(timezone.utc).isoformat()
 
-#Jira connection details
+# Jira connection details
 JIRA_URL = os.environ.get('JIRA_URL')
 JIRA_EMAIL = os.environ.get('JIRA_EMAIL')
 JIRA_TOKEN = os.environ.get('JIRA_TOKEN') 
@@ -27,7 +27,7 @@ headers = {
 
 auth = (JIRA_EMAIL, JIRA_TOKEN)
 
-#Max Jira results is 100. Loop can return more than 100
+# Max Jira results is 100. Loop can return more than 100
 while True:
     payload = {
         'jql': f'filter = {JIRA_FILTER_ID}',
@@ -42,7 +42,7 @@ while True:
         ],
     }
 
-    #If we have a token from the previous loop, run payload
+    # If we have a token from the previous loop, run payload
     if next_page_token:
         payload['nextPageToken'] = next_page_token
 
@@ -50,39 +50,37 @@ while True:
         url, data=json.dumps(payload), headers=headers, auth=auth
     )
 
-    #If response is good, begin to add data to batch
+    # If response is good, begin to add data to batch
     if response.status_code == 200:
-        #data is full results for current pull
         data = response.json()
-        #batch is just issues results. .get() logic will return [] if there is an error
         batch = data.get('issues', [])
 
-        #If batch is empty, end script
+        # If batch is empty, end script
         if not batch:
             break
 
-        #Add issues results to all_issues
+        # Add issues results to all_issues
         all_issues.extend(batch)
         print(f'-> Retrieved {len(all_issues)} issues...')
 
-        #Grab the next cursor token from Jira's response
+        # Grab the next cursor token from Jira's response
         next_page_token = data.get('nextPageToken')
 
-        #If Jira doesn't return a new token, break.
+        # If Jira doesn't return a new token, break.
         if not next_page_token:
             break
-    #Return if error in response code
+    # Return if error in response code
     else:
         print(f'Error fetching data from Jira: {response.status_code}')
         print(response.text)
         break
 
-#Ensure we actually found records before proceeding
+# Ensure we actually found records before proceeding
 if all_issues:
-    #Flatten into DataFrame and rename the data
+    # Flatten into DataFrame and rename the data
     df = pd.json_normalize(all_issues)
 
-    #Specify which columns to keep
+    # Specify which columns to keep
     columns_to_keep = {
         'key': 'Issue Key',
         'fields.summary': 'Summary',
@@ -93,17 +91,17 @@ if all_issues:
         'fields.customfield_10042.value': 'Source',
     }
 
-    #Check to keep matches on columns and renames columns
+    # Check to keep matches on columns and renames columns
     existing_columns = [
         col for col in columns_to_keep.keys() if col in df.columns
     ]
     df_clean = df[existing_columns].rename(columns=columns_to_keep)
 
-    #Set the primary key for the DataFrame
+    # Set the primary key for the DataFrame
     if 'Issue Key' in df_clean.columns:
         df_clean = df_clean.set_index('Issue Key')
 
-    #Set order of the columns
+    # Set order of the columns
     desired_order = [
         'Summary',
         'Status',
@@ -114,95 +112,126 @@ if all_issues:
     ]
     df_clean = df_clean.reindex(columns=desired_order)
 
-    #Convert types directly on df_clean to prep for Sankey
+    # Convert types directly to string to prep for aggregation
     df_clean['Source'] = df_clean['Source'].astype(str)
     df_clean['Status'] = df_clean['Status'].astype(str)
 
-    #Aggregate data
-    direct_flow = df_clean.groupby(['Source', 'Status']).size().reset_index(name='Weight')
+    # =========================================================================
+    # 🌟 TRACKABLE SOURCE-SPECIFIC END-TO-END FLOW LOGIC
+    # =========================================================================
+    pipeline_rows = []
 
-    # --- ADD THESE TWO LINES TEMPORARILY ---
-    print("👉 UNIQUE SOURCES (In Order):", sorted(df_clean['Source'].unique()))
-    print("👉 UNIQUE STATUSES (In Order):", sorted(df_clean['Status'].unique()))
-    
-    #Convert into a List of Lists for JavaScript injection
-    chart_data = direct_flow.values.tolist()
+    for _, row in df_clean.iterrows():
+        source = row['Source']
+        status = row['Status']
+        
+        # Standardize source names to fix casing mismatches
+        if source.lower() == 'linkedin':
+            source = 'LinkedIn'
+        elif source.lower() == 'builtin':
+            source = 'Builtin'
+        elif source.lower() == 'networking':
+            source = 'Networking'
+            
+        middle_node = f"{source} (Applied)"
 
-    print(chart_data)
+        # --- CONDITION 1: Active "Applied" items ---
+        if status == 'Applied':
+            pipeline_rows.append({'Source': source, 'Target': middle_node, 'Weight': 1})
+
+        # --- CONDITION 2: "No Response" items ---
+        elif status == 'No Response':
+            pipeline_rows.append({'Source': source, 'Target': middle_node, 'Weight': 1})
+            pipeline_rows.append({'Source': middle_node, 'Target': 'No Response', 'Weight': 1})
+
+        # --- CONDITION 3: "Application Rejected" items ---
+        elif status == 'Application Rejected':
+            pipeline_rows.append({'Source': source, 'Target': middle_node, 'Weight': 1})
+            pipeline_rows.append({'Source': middle_node, 'Target': 'Application Rejected', 'Weight': 1})
+
+    # Convert row entries into a clean DataFrame and aggregate the totals
+    if pipeline_rows:
+        final_pipeline = pd.DataFrame(pipeline_rows)
+        final_pipeline = final_pipeline.groupby(['Source', 'Target']).size().reset_index(name='Weight')
+        
+        # Sort values cleanly by data lineage
+        final_pipeline = final_pipeline.sort_values(by=['Source', 'Target'], ascending=[True, True])
+        chart_data = final_pipeline.values.tolist()
+    else:
+        chart_data = []
+    # =========================================================================
+
+    print("👉 Outputting Aligned 3-Line Layout to Dashboard...")
     
-    #Construct a multi-line f-string. This behaves like an HTML template file.
+    # Construct a multi-line f-string. This behaves like an HTML template file.
     html_template = f"""<!DOCTYPE html>
     <html>
     <head>
         <title>Jira Application Source Pipeline</title>
         <script type='text/javascript' src='https://www.gstatic.com/charts/loader.js'></script>
         <script type='text/javascript'>
-        // Initialize and request the specific visualization packages we need
         google.charts.load('current', {{'packages':['sankey']}});
         google.charts.setOnLoadCallback(drawChart);
 
         function drawChart() {{
             var data = new google.visualization.DataTable();
             
-            // Map the layout schema for Google Charts
-            data.addColumn('string', 'Application Source');
-            data.addColumn('string', 'Current Funnel Status');
+            data.addColumn('string', 'From Node');
+            data.addColumn('string', 'To Node');
             data.addColumn('number', 'Total Count');
             
-            // Inject our native Python list object into the script brackets
             data.addRows({chart_data});
 
-            // 1. HARDCODE YOUR EXACT COLOR MAP DICTIONARY
+            // HARDCODE COLOR MAP DICTIONARY
             var colorMap = {{
             'Builtin': '#07006c',
-            'Linkedin': '#0072b1',
+            'LinkedIn': '#0072b1',
             'Me': '#27a6f5',
+            'Networking': '#fa9214',
             'Simplify': '#3bc4d7',
             
-            'Applied': '#2ecc71',
-            'In Queue/Not Started': '#696969',
-            'In Progress': '#696969',
+            'Builtin (Applied)': '#07006c',
+            'LinkedIn (Applied)': '#0072b1',
+            'Me (Applied)': '#27a6f5',
+            'Networking (Applied)': '#fa9214',
+            'Simplify (Applied)': '#3bc4d7',
+            
             'No Response': '#f1c40f',
-            'Rejected': '#e74c3c'
+            'Application Rejected': '#e74c3c'
             }};
 
-            // 2. DYNAMICALLY BUILD THE COLOR PALETTE FOR GOOGLE CHARTS
+            // DYNAMICALLY BUILD THE COLOR PALETTE FOR GOOGLE CHARTS
             var dynamicColors = [];
             var coloredNodes = {{}}; 
 
             for (var i = 0; i < data.getNumberOfRows(); i++) {{
-            var sourceNode = data.getValue(i, 0);
-            var statusNode = data.getValue(i, 1);
-            
-            // Map Source color if unassigned
-            if (!coloredNodes[sourceNode]) {{
-                dynamicColors.push(colorMap[sourceNode] || '#cccccc'); // Fallback to gray if string is unmapped
-                coloredNodes[sourceNode] = true;
-            }}
-            
-            // Map Status color if unassigned
-            if (!coloredNodes[statusNode]) {{
-                dynamicColors.push(colorMap[statusNode] || '#cccccc'); // Fallback to gray if string is unmapped
-                coloredNodes[statusNode] = true;
-            }}
+                var sourceNode = data.getValue(i, 0);
+                var statusNode = data.getValue(i, 1);
+                
+                if (!coloredNodes[sourceNode]) {{
+                    dynamicColors.push(colorMap[sourceNode] || '#cccccc');
+                    coloredNodes[sourceNode] = true;
+                }}
+                if (!coloredNodes[statusNode]) {{
+                    dynamicColors.push(colorMap[statusNode] || '#cccccc');
+                    coloredNodes[statusNode] = true;
+                }}
             }}
 
-            // 3. Set layout configurations, sizing options, and inject the dynamic palette array
             var options = {{
             width: 950,
             height: 550,
             sankey: {{
                 node: {{ 
-                colors: dynamicColors, // Passes the beautifully mapped array right to the canvas
+                colors: dynamicColors,
                 label: {{ fontSize: 14, fontFamily: 'Arial', labelPadding: 15 }},
                 padding: 35,
                 interactivity: true
                 }},
-                link: {{ colorMode: 'gradient' }} // Blends node colors seamlessly across flow lines
+                link: {{ colorMode: 'gradient' }}
             }}
             }};
 
-            // Instantiate and display the chart container targeting our DOM container div id
             var chart = new google.visualization.Sankey(document.getElementById('sankey_view'));
             chart.draw(data, options);
         }}
@@ -232,10 +261,9 @@ if all_issues:
     </html>
     """
 
-    #Open a local file workspace, enforce clean unicode string encoding, and save the web page
+    # Save out file to disk
     with open("application_sankey.html", "w", encoding="utf-8") as file:
         file.write(html_template)
 
     print("\n🎉 ARCHITECTURE COMPILED SUCCESSFULLY!")
     print("-> Web asset written locally as 'application_sankey.html'")
-    print("👉 Double-click 'application_sankey.html' inside your folder directory to launch your interactive dashboard!")
