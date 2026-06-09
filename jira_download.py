@@ -116,65 +116,77 @@ if all_issues:
     df_clean['Source'] = df_clean['Source'].astype(str)
     df_clean['Status'] = df_clean['Status'].astype(str)
 
+    # Standardize source names to fix casing mismatches prior to aggregation
+    def clean_source(src):
+        src_lower = src.lower()
+        if src_lower == 'linkedin': return 'LinkedIn'
+        if src_lower == 'builtin': return 'Builtin'
+        if src_lower == 'networking': return 'Networking'
+        return src
+
+    df_clean['Source'] = df_clean['Source'].apply(clean_source)
+
     # =========================================================================
-    # 🌟 TRACKABLE SOURCE-SPECIFIC END-TO-END FLOW LOGIC
+    # CALCULATE NODE TOTALS IN PYTHON
     # =========================================================================
+    valid_statuses = ['Applied', 'No Response', 'Application Rejected', 'Screened']
+    df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
+
+    # 1. Total count across everything for the central junction node
+    total_applied = len(df_filtered)
+
+    # 2. Source totals
+    source_counts = df_filtered['Source'].value_counts().to_dict()
+
+    # 3. Destination status totals
+    status_counts = df_filtered['Status'].value_counts().to_dict()
+
+    # Formulate dynamically formatted node labels containing their aggregate weight
+    middle_node = f"Applied ({total_applied})"
+    
+    def get_source_label(src):
+        return f"{src} ({source_counts.get(src, 0)})"
+        
+    def get_status_label(stat):
+        return f"{stat} ({status_counts.get(stat, 0)})"
+
+    # Map the pipeline connections using the brand new numbered labels
     pipeline_rows = []
 
     for _, row in df_clean.iterrows():
         source = row['Source']
         status = row['Status']
         
-        # Standardize source names to fix casing mismatches
-        if source.lower() == 'linkedin':
-            source = 'LinkedIn'
-        elif source.lower() == 'builtin':
-            source = 'Builtin'
-        elif source.lower() == 'networking':
-            source = 'Networking'
-            
-        # VISUAL MASKING: Assign zero-width spaces (\u200b) to distinguish nodes.
-        if source == 'Builtin':
-            middle_node = '(Applied)'
-        elif source == 'LinkedIn':
-            middle_node = '(Applied)\u200b'
-        elif source == 'Me':
-            middle_node = '(Applied)\u200b\u200b'
-        elif source == 'Networking':
-            middle_node = '(Applied)\u200b\u200b\u200b'
-        elif source == 'Simplify':
-            middle_node = '(Applied)\u200b\u200b\u200b\u200b'
-        else:
-            middle_node = f"{source} (Applied)"
+        src_label = get_source_label(source)
 
         # --- CONDITION 1: Active "Applied" items ---
         if status == 'Applied':
-            pipeline_rows.append({'Source': source, 'Target': middle_node, 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': middle_node, 'Weight': 1})
 
         # --- CONDITION 2: "No Response" items ---
         elif status == 'No Response':
-            pipeline_rows.append({'Source': source, 'Target': middle_node, 'Weight': 1})
-            pipeline_rows.append({'Source': middle_node, 'Target': 'No Response', 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': middle_node, 'Weight': 1})
+            pipeline_rows.append({'Source': middle_node, 'Target': get_status_label('No Response'), 'Weight': 1})
 
         # --- CONDITION 3: "Application Rejected" items ---
         elif status == 'Application Rejected':
-            pipeline_rows.append({'Source': source, 'Target': middle_node, 'Weight': 1})
-            pipeline_rows.append({'Source': middle_node, 'Target': 'Application Rejected', 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': middle_node, 'Weight': 1})
+            pipeline_rows.append({'Source': middle_node, 'Target': get_status_label('Application Rejected'), 'Weight': 1})
 
         # --- CONDITION 4: Active "Screened" status ---
         elif status == 'Screened':
-            pipeline_rows.append({'Source': source, 'Target': middle_node, 'Weight': 1})
-            pipeline_rows.append({'Source': middle_node, 'Target': 'Screened', 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': middle_node, 'Weight': 1})
+            pipeline_rows.append({'Source': middle_node, 'Target': get_status_label('Screened'), 'Weight': 1})
 
     # Convert row entries into a clean DataFrame and aggregate the totals
     if pipeline_rows:
         final_pipeline = pd.DataFrame(pipeline_rows)
         final_pipeline = final_pipeline.groupby(['Source', 'Target']).size().reset_index(name='Weight')
         
-        # Add explicit hop ranking to keep things visually square
-        final_pipeline['Pipeline_Hop'] = final_pipeline['Source'].apply(lambda x: 2 if '(Applied)' in x else 1)
+        # Flag the hop tier using the newly updated string layout
+        final_pipeline['Pipeline_Hop'] = final_pipeline['Source'].apply(lambda x: 2 if 'Applied (' in x else 1)
         
-        # Prioritize Hop tier, then arrange by source channels
+        # Sort so the incoming sources flow cleanly before the terminal outcomes break out
         final_pipeline = final_pipeline.sort_values(
             by=['Pipeline_Hop', 'Source', 'Target'], 
             ascending=[True, True, True]
@@ -207,23 +219,19 @@ if all_issues:
             
             data.addRows({chart_data});
 
-            // HARDCODE COLOR MAP DICTIONARY (Mappings synchronized with zero-width strings)
+            // HARDCODE COLOR MAP DICTIONARY (Updated to match dynamic string labels)
             var colorMap = {{
-            'Builtin': '#07006c',
-            'LinkedIn': '#0072b1',
-            'Me': '#27a6f5',
-            'Networking': '#fa9214',
-            'Simplify': '#3bc4d7',
+            'Builtin ({source_counts.get('Builtin', 0)})': '#07006c',
+            'LinkedIn ({source_counts.get('LinkedIn', 0)})': '#0072b1',
+            'Me ({source_counts.get('Me', 0)})': '#27a6f5',
+            'Networking ({source_counts.get('Networking', 0)})': '#fa9214',
+            'Simplify ({source_counts.get('Simplify', 0)})': '#3bc4d7',
             
-            '(Applied)': '#07006c',
-            '(Applied)\\u200b': '#0072b1',
-            '(Applied)\\u200b\\u200b': '#27a6f5',
-            '(Applied)\\u200b\\u200b\\u200b': '#fa9214',
-            '(Applied)\\u200b\\u200b\\u200b\\u200b': '#3bc4d7',
+            '{middle_node}': '#34495e', 
             
-            'No Response': '#f1c40f',
-            'Screened': '#2ecc71',
-            'Application Rejected': '#e74c3c'
+            'No Response ({status_counts.get('No Response', 0)})': '#f1c40f',
+            'Screened ({status_counts.get('Screened', 0)})': '#2ecc71',
+            'Application Rejected ({status_counts.get('Application Rejected', 0)})': '#e74c3c'
             }};
 
             // DYNAMICALLY BUILD THE COLOR PALETTE FOR GOOGLE CHARTS
@@ -250,7 +258,8 @@ if all_issues:
             sankey: {{
                 node: {{ 
                 colors: dynamicColors,
-                label: {{ fontSize: 14, fontFamily: 'Arial', labelPadding: 15 }},
+                // 🌟 ADDED BOLD: TRUE TO RENDER STRINGS BOLDED
+                label: {{ fontSize: 14, fontFamily: 'Arial', bold: true, labelPadding: 15 }},
                 padding: 35,
                 interactivity: true
                 }},
