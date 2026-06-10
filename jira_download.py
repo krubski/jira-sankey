@@ -132,17 +132,18 @@ if all_issues:
     valid_statuses = ['Applied', 'No Response', 'Application Rejected', 'Screened']
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
 
-    # 1. Total count across everything for the central junction node
+    # 1. Total count across everything for Column 1
     total_applied = len(df_filtered)
 
-    # 2. Source totals
+    # 2. Source totals for Column 2
     source_counts = df_filtered['Source'].value_counts().to_dict()
 
-    # 3. Destination status totals
+    # 3. Destination status totals for Column 3 (including the breakout of raw 'Applied')
     status_counts = df_filtered['Status'].value_counts().to_dict()
-
+    
     # Formulate dynamically formatted node labels containing their aggregate weight
-    middle_node = f"Applied ({total_applied})"
+    root_node = f"Applied ({total_applied})"
+    active_review_node = f"Active / In Review ({status_counts.get('Applied', 0)})"
     
     def get_source_label(src):
         return f"{src} ({source_counts.get(src, 0)})"
@@ -150,7 +151,7 @@ if all_issues:
     def get_status_label(stat):
         return f"{stat} ({status_counts.get(stat, 0)})"
 
-    # Map the pipeline connections using the brand new numbered labels
+    # Map the pipeline connections matching the new visual logic
     pipeline_rows = []
 
     for _, row in df_clean.iterrows():
@@ -159,34 +160,35 @@ if all_issues:
         
         src_label = get_source_label(source)
 
-        # --- CONDITION 1: Active "Applied" items ---
+        # --- CONDITION 1: Active "Applied" items (Now explicitly pushed to Column 3) ---
         if status == 'Applied':
-            pipeline_rows.append({'Source': src_label, 'Target': middle_node, 'Weight': 1})
+            pipeline_rows.append({'Source': root_node, 'Target': src_label, 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': active_review_node, 'Weight': 1})
 
         # --- CONDITION 2: "No Response" items ---
         elif status == 'No Response':
-            pipeline_rows.append({'Source': src_label, 'Target': middle_node, 'Weight': 1})
-            pipeline_rows.append({'Source': middle_node, 'Target': get_status_label('No Response'), 'Weight': 1})
+            pipeline_rows.append({'Source': root_node, 'Target': src_label, 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': get_status_label('No Response'), 'Weight': 1})
 
         # --- CONDITION 3: "Application Rejected" items ---
         elif status == 'Application Rejected':
-            pipeline_rows.append({'Source': src_label, 'Target': middle_node, 'Weight': 1})
-            pipeline_rows.append({'Source': middle_node, 'Target': get_status_label('Application Rejected'), 'Weight': 1})
+            pipeline_rows.append({'Source': root_node, 'Target': src_label, 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': get_status_label('Application Rejected'), 'Weight': 1})
 
         # --- CONDITION 4: Active "Screened" status ---
         elif status == 'Screened':
-            pipeline_rows.append({'Source': src_label, 'Target': middle_node, 'Weight': 1})
-            pipeline_rows.append({'Source': middle_node, 'Target': get_status_label('Screened'), 'Weight': 1})
+            pipeline_rows.append({'Source': root_node, 'Target': src_label, 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': get_status_label('Screened'), 'Weight': 1})
 
     # Convert row entries into a clean DataFrame and aggregate the totals
     if pipeline_rows:
         final_pipeline = pd.DataFrame(pipeline_rows)
         final_pipeline = final_pipeline.groupby(['Source', 'Target']).size().reset_index(name='Weight')
         
-        # Flag the hop tier using the newly updated string layout
-        final_pipeline['Pipeline_Hop'] = final_pipeline['Source'].apply(lambda x: 2 if 'Applied (' in x else 1)
+        # Flag the hop tier: Hop 1 starts from the initial root node string
+        final_pipeline['Pipeline_Hop'] = final_pipeline['Source'].apply(lambda x: 1 if 'Applied (' in x else 2)
         
-        # Sort so the incoming sources flow cleanly before the terminal outcomes break out
+        # Sort layers cleanly so columns stack logically
         final_pipeline = final_pipeline.sort_values(
             by=['Pipeline_Hop', 'Source', 'Target'], 
             ascending=[True, True, True]
@@ -219,16 +221,17 @@ if all_issues:
             
             data.addRows({chart_data});
 
-            // HARDCODE COLOR MAP DICTIONARY (Updated to match dynamic string labels)
+            // HARDCODE COLOR MAP DICTIONARY
             var colorMap = {{
+            '{root_node}': '#34495e', 
+            
             'Builtin ({source_counts.get('Builtin', 0)})': '#07006c',
             'LinkedIn ({source_counts.get('LinkedIn', 0)})': '#0072b1',
             'Me ({source_counts.get('Me', 0)})': '#27a6f5',
             'Networking ({source_counts.get('Networking', 0)})': '#fa9214',
             'Simplify ({source_counts.get('Simplify', 0)})': '#3bc4d7',
             
-            '{middle_node}': '#34495e', 
-            
+            '{active_review_node}': '#2980b9', // Vibrant blue for items still pending action
             'No Response ({status_counts.get('No Response', 0)})': '#f1c40f',
             'Screened ({status_counts.get('Screened', 0)})': '#2ecc71',
             'Application Rejected ({status_counts.get('Application Rejected', 0)})': '#e74c3c'
@@ -258,7 +261,6 @@ if all_issues:
             sankey: {{
                 node: {{ 
                 colors: dynamicColors,
-                // 🌟 ADDED BOLD: TRUE TO RENDER STRINGS BOLDED
                 label: {{ fontSize: 14, fontFamily: 'Arial', bold: true, labelPadding: 15 }},
                 padding: 35,
                 interactivity: true
