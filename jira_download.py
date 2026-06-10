@@ -223,7 +223,7 @@ if all_issues:
 
             // HARDCODE COLOR MAP DICTIONARY
             var colorMap = {{
-            '{root_node}': '#34495e', 
+            '{root_node}': '#BDBDBD', 
             
             'Builtin ({source_counts.get('Builtin', 0)})': '#07006c',
             'LinkedIn ({source_counts.get('LinkedIn', 0)})': '#0072b1',
@@ -231,7 +231,7 @@ if all_issues:
             'Networking ({source_counts.get('Networking', 0)})': '#fa9214',
             'Simplify ({source_counts.get('Simplify', 0)})': '#3bc4d7',
             
-            '{active_review_node}': '#2980b9', // Vibrant blue for items still pending action
+            '{active_review_node}': '#2ecc71', // Vibrant blue for items still pending action
             'No Response ({status_counts.get('No Response', 0)})': '#f1c40f',
             'Screened ({status_counts.get('Screened', 0)})': '#2ecc71',
             'Application Rejected ({status_counts.get('Application Rejected', 0)})': '#e74c3c'
