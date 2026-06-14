@@ -127,9 +127,10 @@ if all_issues:
     df_clean['Source'] = df_clean['Source'].apply(clean_source)
 
     # =========================================================================
-    # CALCULATE NODE TOTALS IN PYTHON
+    # CALCULATE NODE TOTALS IN PYTHON (Using native Jira Status Names)
     # =========================================================================
-    valid_statuses = ['Applied', 'No Response', 'Application Rejected', 'Screened']
+    # 🌟 Updated 'Application Rejected' to 'Applied > Rejected'
+    valid_statuses = ['Applied', 'Applied > No Response', 'Applied > Rejected', 'Screened']
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
 
     # 1. Total count across everything for Column 1
@@ -138,7 +139,7 @@ if all_issues:
     # 2. Source totals for Column 2
     source_counts = df_filtered['Source'].value_counts().to_dict()
 
-    # 3. Destination status totals for Column 3 (including the breakout of raw 'Applied')
+    # 3. Destination status totals for Column 3
     status_counts = df_filtered['Status'].value_counts().to_dict()
     
     # Formulate dynamically formatted node labels containing their aggregate weight
@@ -151,7 +152,7 @@ if all_issues:
     def get_status_label(stat):
         return f"{stat} ({status_counts.get(stat, 0)})"
 
-    # Map the pipeline connections matching the new visual logic
+    # Map the pipeline connections matching the visual logic
     pipeline_rows = []
 
     for _, row in df_clean.iterrows():
@@ -160,20 +161,20 @@ if all_issues:
         
         src_label = get_source_label(source)
 
-        # --- CONDITION 1: Active "Applied" items (Now explicitly pushed to Column 3) ---
+        # --- CONDITION 1: Active "Applied" items ---
         if status == 'Applied':
             pipeline_rows.append({'Source': root_node, 'Target': src_label, 'Weight': 1})
             pipeline_rows.append({'Source': src_label, 'Target': active_review_node, 'Weight': 1})
 
-        # --- CONDITION 2: "No Response" items ---
-        elif status == 'No Response':
+        # --- CONDITION 2: Native "Applied > No Response" items ---
+        elif status == 'Applied > No Response':
             pipeline_rows.append({'Source': root_node, 'Target': src_label, 'Weight': 1})
-            pipeline_rows.append({'Source': src_label, 'Target': get_status_label('No Response'), 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': get_status_label('Applied > No Response'), 'Weight': 1})
 
-        # --- CONDITION 3: "Application Rejected" items ---
-        elif status == 'Application Rejected':
+        # --- CONDITION 3: Native "Applied > Rejected" items ---
+        elif status == 'Applied > Rejected':
             pipeline_rows.append({'Source': root_node, 'Target': src_label, 'Weight': 1})
-            pipeline_rows.append({'Source': src_label, 'Target': get_status_label('Application Rejected'), 'Weight': 1})
+            pipeline_rows.append({'Source': src_label, 'Target': get_status_label('Applied > Rejected'), 'Weight': 1})
 
         # --- CONDITION 4: Active "Screened" status ---
         elif status == 'Screened':
@@ -231,10 +232,10 @@ if all_issues:
             'Networking ({source_counts.get('Networking', 0)})': '#fa9214',
             'Simplify ({source_counts.get('Simplify', 0)})': '#3bc4d7',
             
-            '{active_review_node}': '#2ecc71', // Vibrant blue for items still pending action
-            'No Response ({status_counts.get('No Response', 0)})': '#f1c40f',
+            '{active_review_node}': '#2ecc71', 
+            'Applied > No Response ({status_counts.get('Applied > No Response', 0)})': '#f1c40f',
             'Screened ({status_counts.get('Screened', 0)})': '#2ecc71',
-            'Application Rejected ({status_counts.get('Application Rejected', 0)})': '#e74c3c'
+            'Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})': '#e74c3c'
             }};
 
             // DYNAMICALLY BUILD THE COLOR PALETTE FOR GOOGLE CHARTS
