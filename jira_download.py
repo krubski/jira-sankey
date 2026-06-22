@@ -89,13 +89,13 @@ if all_issues:
         if src_lower == 'linkedin': return 'LinkedIn'
         if src_lower == 'builtin': return 'Builtin'
         if src_lower == 'networking': return 'Networking'
-        if src_lower == 'indeed': return 'Indeed'  # 🌟 Standardize Indeed string
+        if src_lower == 'indeed': return 'Indeed'
         return src
 
     df_clean['Source'] = df_clean['Source'].apply(clean_source)
 
     # =========================================================================
-    # CALCULATE AGGREGATES & CONSTRUCT CONFIG WITH INDEED INTEGRATED
+    # CALCULATE AGGREGATES & CONSTRUCT SWAPPED PLOT WITH UPDATED COLORS
     # =========================================================================
     valid_statuses = ['Applied', 'Applied > No Response', 'Applied > Rejected', 'Screened', 'Screened > No Response']
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
@@ -104,26 +104,27 @@ if all_issues:
     source_counts = df_filtered['Source'].value_counts().to_dict()
     status_counts = df_filtered['Status'].value_counts().to_dict()
 
+    # Channels are Column 0, Consolidated Applied Pool is Column 1
     nodes_config = [
-        # Column 0: Root
-        {"name": f"Applied ({total_applied})", "column": 0, "color": "#BDBDBD"},
+        # Column 0: Sourcing Channels First
+        {"name": f"Builtin ({source_counts.get('Builtin', 0)})", "column": 0, "color": "#07006c"},
+        {"name": f"Indeed ({source_counts.get('Indeed', 0)})", "column": 0, "color": "#2164f3"},
+        {"name": f"LinkedIn ({source_counts.get('LinkedIn', 0)})", "column": 0, "color": "#0072b1"},
+        {"name": f"Me ({source_counts.get('Me', 0)})", "column": 0, "color": "#27a6f5"},
+        {"name": f"Networking ({source_counts.get('Networking', 0)})", "column": 0, "color": "#fa9214"},
+        {"name": f"Simplify ({source_counts.get('Simplify', 0)})", "column": 0, "color": "#3bc4d7"},
         
-        # Column 1: Channels
-        {"name": f"Builtin ({source_counts.get('Builtin', 0)})", "column": 1, "color": "#07006c"},
-        {"name": f"Indeed ({source_counts.get('Indeed', 0)})", "column": 1, "color": "#003a9b"},  # 🌟 Added Indeed Node (Corporate Blue)
-        {"name": f"LinkedIn ({source_counts.get('LinkedIn', 0)})", "column": 1, "color": "#0072b1"},
-        {"name": f"Me ({source_counts.get('Me', 0)})", "column": 1, "color": "#27a6f5"},
-        {"name": f"Networking ({source_counts.get('Networking', 0)})", "column": 1, "color": "#fa9214"},
-        {"name": f"Simplify ({source_counts.get('Simplify', 0)})", "column": 1, "color": "#3bc4d7"},
+        # Column 1: Core Consolidation Point
+        {"name": f"Applied ({total_applied})", "column": 1, "color": "#BDBDBD"},
         
-        # Column 2: Core Endpoints / Intermediate Step
+        # Column 2: Outcomes (With aligned colors)
         {"name": f"Active / In Review ({status_counts.get('Applied', 0)})", "column": 2, "color": "#2ecc71"},
         {"name": f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})", "column": 2, "color": "#f1c40f"},
         {"name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})", "column": 2, "color": "#e74c3c"},
-        {"name": f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})", "column": 2, "color": "#2ecc71"},
+        {"name": f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})", "column": 2, "color": "#2ecc71"}, # Matched green
         
-        # Column 3: Dedicated Deep Stage
-        {"name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f"}
+        # Column 3: Deep Stage
+        {"name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f"} # Matched yellow
     ]
 
     node_name_to_idx = {n["name"]: i for i, n in enumerate(nodes_config)}
@@ -148,16 +149,17 @@ if all_issues:
 
         src_node = source_to_node[src]
         
+        # Link routing logic inverted for the structural shift
         if status == 'Screened > No Response':
             dest_node = f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})"
             col4_node_name = f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})"
-            links_raw.append({"source": root_node_name, "target": src_node})
-            links_raw.append({"source": src_node, "target": dest_node})
+            links_raw.append({"source": src_node, "target": root_node_name})
+            links_raw.append({"source": root_node_name, "target": dest_node})
             links_raw.append({"source": dest_node, "target": col4_node_name})
         else:
             dest_node = status_to_node[status]
-            links_raw.append({"source": root_node_name, "target": src_node})
-            links_raw.append({"source": src_node, "target": dest_node})
+            links_raw.append({"source": src_node, "target": root_node_name})
+            links_raw.append({"source": root_node_name, "target": dest_node})
 
     links_df = pd.DataFrame(links_raw).groupby(['source', 'target']).size().reset_index(name='value')
     
@@ -172,12 +174,12 @@ if all_issues:
 
     d3_data_json = json.dumps({"nodes": nodes_config, "links": links_config})
 
-    print("👉 Compiling D3.js Layout Template with Indeed...")
+    print("👉 Compiling Swapped D3.js Layout Template...")
     
     html_template = f"""<!DOCTYPE html>
     <html>
     <head>
-        <title>Jira Application Source Pipeline (D3.js)</title>
+        <title>Jira Application Source Pipeline (D3.js - Swapped Layout)</title>
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
         <style>
@@ -199,7 +201,7 @@ if all_issues:
             <div class="header">
                 <h2>Jira Application Source Pipeline</h2>
                 <p>
-                    Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>.
+                    Interactive 4-Column Pipeline built natively with <strong>D3.js</strong> (Channels &rarr; Total Applied &rarr; Outcomes).
                     <span style="display: block; margin-top: 8px; color: #95a5a6; font-weight: bold;">
                         ⏰ Last Synchronized: <span id="local-timestamp">Calculating local time...</span>
                     </span>
@@ -312,5 +314,5 @@ if all_issues:
     with open("application_sankey.html", "w", encoding="utf-8") as file:
         file.write(html_template)
 
-    print("\n🎉 INDEED INTEGRATED & ASSET SUCCESSFULLY COMPILED!")
-    print("-> Web asset written locally as 'application_sankey.html'")
+    print("\n🎉 LAYOUT SWAPPED BACK & RE-COMPILED WITH INDEED!")
+    print("-> Web asset updated locally as 'application_sankey.html'")
