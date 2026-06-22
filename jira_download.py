@@ -95,7 +95,7 @@ if all_issues:
     df_clean['Source'] = df_clean['Source'].apply(clean_source)
 
     # =========================================================================
-    # CALCULATE AGGREGATES & CONSTRUCT SWAPPED PLOT WITH UPDATED COLORS
+    # CALCULATE AGGREGATES & CONSTRUCT RE-ALIGNED GRAPH
     # =========================================================================
     valid_statuses = ['Applied', 'Applied > No Response', 'Applied > Rejected', 'Screened', 'Screened > No Response']
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
@@ -104,7 +104,6 @@ if all_issues:
     source_counts = df_filtered['Source'].value_counts().to_dict()
     status_counts = df_filtered['Status'].value_counts().to_dict()
 
-    # Channels are Column 0, Consolidated Applied Pool is Column 1
     nodes_config = [
         # Column 0: Sourcing Channels First
         {"name": f"Builtin ({source_counts.get('Builtin', 0)})", "column": 0, "color": "#07006c"},
@@ -117,14 +116,14 @@ if all_issues:
         # Column 1: Core Consolidation Point
         {"name": f"Applied ({total_applied})", "column": 1, "color": "#BDBDBD"},
         
-        # Column 2: Outcomes (With aligned colors)
+        # Column 2: Outcomes
         {"name": f"Active / In Review ({status_counts.get('Applied', 0)})", "column": 2, "color": "#2ecc71"},
         {"name": f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})", "column": 2, "color": "#f1c40f"},
         {"name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})", "column": 2, "color": "#e74c3c"},
-        {"name": f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})", "column": 2, "color": "#2ecc71"}, # Matched green
+        {"name": f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})", "column": 2, "color": "#2ecc71"},
         
         # Column 3: Deep Stage
-        {"name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f"} # Matched yellow
+        {"name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f"}
     ]
 
     node_name_to_idx = {n["name"]: i for i, n in enumerate(nodes_config)}
@@ -149,7 +148,6 @@ if all_issues:
 
         src_node = source_to_node[src]
         
-        # Link routing logic inverted for the structural shift
         if status == 'Screened > No Response':
             dest_node = f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})"
             col4_node_name = f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})"
@@ -174,17 +172,17 @@ if all_issues:
 
     d3_data_json = json.dumps({"nodes": nodes_config, "links": links_config})
 
-    print("👉 Compiling Swapped D3.js Layout Template...")
+    print("👉 Compiling D3.js Layout Template with Aligned Labels...")
     
     html_template = f"""<!DOCTYPE html>
     <html>
     <head>
-        <title>Jira Application Source Pipeline (D3.js - Swapped Layout)</title>
+        <title>Jira Application Source Pipeline (D3.js)</title>
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
         <style>
             body {{ font-family: Arial, sans-serif; background-color: #f4f6f9; padding: 30px; margin: 0; display: flex; flex-direction: column; align-items: center; }}
-            .container {{ width: 1150px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 25px; box-sizing: border-box; }}
+            .container {{ width: 1250px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 25px; box-sizing: border-box; }}
             .header {{ text-align: left; margin-bottom: 25px; }}
             .header h2 {{ color: #2c3e50; margin: 0 0 5px 0; }}
             .header p {{ color: #7f8c8d; margin: 0; font-size: 14px; }}
@@ -201,13 +199,13 @@ if all_issues:
             <div class="header">
                 <h2>Jira Application Source Pipeline</h2>
                 <p>
-                    Interactive 4-Column Pipeline built natively with <strong>D3.js</strong> (Channels &rarr; Total Applied &rarr; Outcomes).
+                    Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>.
                     <span style="display: block; margin-top: 8px; color: #95a5a6; font-weight: bold;">
                         ⏰ Last Synchronized: <span id="local-timestamp">Calculating local time...</span>
                     </span>
                 </p>
             </div>
-            <svg id="sankey_svg" width="1100" height="550"></svg>
+            <svg id="sankey_svg" width="1200" height="550"></svg>
         </div>
         <div id="tooltip"></div>
 
@@ -221,12 +219,12 @@ if all_issues:
             const sankey = d3.sankey()
                 .nodeWidth(24)
                 .nodePadding(30)
-                .extent([[10, 10], [width - 10, height - 10]]);
+                .extent([[10, 10], [width - 180, height - 10]]); // Adjusted edge constraints to save canvas room for text padding
 
             let graph = sankey(graphData);
 
             const totalCols = 4;
-            const colWidth = (width - 200) / (totalCols - 1);
+            const colWidth = (width - 220) / (totalCols - 1);
 
             graph.nodes.forEach(node => {{
                 node.x0 = node.column * colWidth;
@@ -294,15 +292,13 @@ if all_issues:
                     tooltip.style("opacity", 0);
                 }});
 
+            // 🌟 FIXED TEXT LABELS: Unified rule to uniformly position all text tags to the right of the node blocks
             node.append("text")
-                .attr("x", d => d.column === 3 ? -12 : d.x1 - d.x0 + 12)
+                .attr("x", d => d.x1 - d.x0 + 12)
                 .attr("y", d => (d.y1 - d.y0) / 2)
                 .attr("dy", "0.35em")
-                .attr("text-anchor", d => d.column === 3 ? "end" : "start")
-                .text(d => d.name)
-                .filter(d => d.x0 + 120 > width && d.column !== 3)
-                .attr("x", -12)
-                .attr("text-anchor", "end");
+                .attr("text-anchor", "start")
+                .text(d => d.name);
 
             const pipelineUtcTime = new Date("{current_utc_iso}");
             document.getElementById("local-timestamp").innerText = pipelineUtcTime.toLocaleString(undefined, {{dateStyle: "long", timeStyle: "short"}});
@@ -314,5 +310,5 @@ if all_issues:
     with open("application_sankey.html", "w", encoding="utf-8") as file:
         file.write(html_template)
 
-    print("\n🎉 LAYOUT SWAPPED BACK & RE-COMPILED WITH INDEED!")
+    print("\n🎉 TEXT BOUNDS BALANCED & RE-COMPILED SUCCESSFULLY!")
     print("-> Web asset updated locally as 'application_sankey.html'")
