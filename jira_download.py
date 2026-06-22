@@ -89,12 +89,13 @@ if all_issues:
         if src_lower == 'linkedin': return 'LinkedIn'
         if src_lower == 'builtin': return 'Builtin'
         if src_lower == 'networking': return 'Networking'
+        if src_lower == 'indeed': return 'Indeed'  # 🌟 Standardize Indeed string
         return src
 
     df_clean['Source'] = df_clean['Source'].apply(clean_source)
 
     # =========================================================================
-    # CALCULATE AGGREGATES & CONSTRUCT CONFIG WITH HARMONIZED COLORS
+    # CALCULATE AGGREGATES & CONSTRUCT CONFIG WITH INDEED INTEGRATED
     # =========================================================================
     valid_statuses = ['Applied', 'Applied > No Response', 'Applied > Rejected', 'Screened', 'Screened > No Response']
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
@@ -103,13 +104,13 @@ if all_issues:
     source_counts = df_filtered['Source'].value_counts().to_dict()
     status_counts = df_filtered['Status'].value_counts().to_dict()
 
-    # Reverted to original column lanes with updated harmonized colors
     nodes_config = [
         # Column 0: Root
         {"name": f"Applied ({total_applied})", "column": 0, "color": "#BDBDBD"},
         
         # Column 1: Channels
         {"name": f"Builtin ({source_counts.get('Builtin', 0)})", "column": 1, "color": "#07006c"},
+        {"name": f"Indeed ({source_counts.get('Indeed', 0)})", "column": 1, "color": "#003a9b"},  # 🌟 Added Indeed Node (Corporate Blue)
         {"name": f"LinkedIn ({source_counts.get('LinkedIn', 0)})", "column": 1, "color": "#0072b1"},
         {"name": f"Me ({source_counts.get('Me', 0)})", "column": 1, "color": "#27a6f5"},
         {"name": f"Networking ({source_counts.get('Networking', 0)})", "column": 1, "color": "#fa9214"},
@@ -119,10 +120,10 @@ if all_issues:
         {"name": f"Active / In Review ({status_counts.get('Applied', 0)})", "column": 2, "color": "#2ecc71"},
         {"name": f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})", "column": 2, "color": "#f1c40f"},
         {"name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})", "column": 2, "color": "#e74c3c"},
-        {"name": f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})", "column": 2, "color": "#2ecc71"}, # 🌟 Matched to Active / In Review
+        {"name": f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})", "column": 2, "color": "#2ecc71"},
         
         # Column 3: Dedicated Deep Stage
-        {"name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f"}  # 🌟 Matched to Applied > No Response
+        {"name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f"}
     ]
 
     node_name_to_idx = {n["name"]: i for i, n in enumerate(nodes_config)}
@@ -171,7 +172,7 @@ if all_issues:
 
     d3_data_json = json.dumps({"nodes": nodes_config, "links": links_config})
 
-    print("👉 Compiling Refined D3.js Layout Template...")
+    print("👉 Compiling D3.js Layout Template with Indeed...")
     
     html_template = f"""<!DOCTYPE html>
     <html>
@@ -311,5 +312,5 @@ if all_issues:
     with open("application_sankey.html", "w", encoding="utf-8") as file:
         file.write(html_template)
 
-    print("\n🎉 COLOR PALETTE INTEGRATED SUCCESSFULLY!")
-    print("-> Web asset updated locally as 'application_sankey.html'")
+    print("\n🎉 INDEED INTEGRATED & ASSET SUCCESSFULLY COMPILED!")
+    print("-> Web asset written locally as 'application_sankey.html'")
