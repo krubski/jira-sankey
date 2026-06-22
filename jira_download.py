@@ -95,47 +95,56 @@ if all_issues:
     df_clean['Source'] = df_clean['Source'].apply(clean_source)
 
     # =========================================================================
-    # CALCULATE AGGREGATES & CONSTRUCT RE-ALIGNED GRAPH
+    # CALCULATE AGGREGATES & CONSTRUCT GRAPH
     # =========================================================================
-    valid_statuses = ['Applied', 'Applied > No Response', 'Applied > Rejected', 'Screened', 'Screened > No Response']
+    valid_statuses = ['Applied', 'Applied > No Response', 'Applied > Rejected', 'Screened', 'Screened > No Response', 'Screened > Rejected']
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
 
     total_applied = len(df_filtered)
     source_counts = df_filtered['Source'].value_counts().to_dict()
     status_counts = df_filtered['Status'].value_counts().to_dict()
 
-    nodes_config = [
-        # Column 0: Sourcing Channels First
-        {"name": f"Builtin ({source_counts.get('Builtin', 0)})", "column": 0, "color": "#07006c"},
-        {"name": f"Indeed ({source_counts.get('Indeed', 0)})", "column": 0, "color": "#2164f3"},
-        {"name": f"LinkedIn ({source_counts.get('LinkedIn', 0)})", "column": 0, "color": "#0072b1"},
-        {"name": f"Me ({source_counts.get('Me', 0)})", "column": 0, "color": "#27a6f5"},
-        {"name": f"Networking ({source_counts.get('Networking', 0)})", "column": 0, "color": "#fa9214"},
-        {"name": f"Simplify ({source_counts.get('Simplify', 0)})", "column": 0, "color": "#3bc4d7"},
+    combined_screened = status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0) + status_counts.get('Screened > Rejected', 0)
+
+    raw_nodes_config = [
+        # Column 0: Sourcing Channels
+        {"id_key": "Builtin", "type": "source", "name": f"Builtin ({source_counts.get('Builtin', 0)})", "column": 0, "color": "#07006c", "count": source_counts.get('Builtin', 0)},
+        {"id_key": "Indeed", "type": "source", "name": f"Indeed ({source_counts.get('Indeed', 0)})", "column": 0, "color": "#2164f3", "count": source_counts.get('Indeed', 0)},
+        {"id_key": "LinkedIn", "type": "source", "name": f"LinkedIn ({source_counts.get('LinkedIn', 0)})", "column": 0, "color": "#0072b1", "count": source_counts.get('LinkedIn', 0)},
+        {"id_key": "Me", "type": "source", "name": f"Me ({source_counts.get('Me', 0)})", "column": 0, "color": "#27a6f5", "count": source_counts.get('Me', 0)},
+        {"id_key": "Networking", "type": "source", "name": f"Networking ({source_counts.get('Networking', 0)})", "column": 0, "color": "#fa9214", "count": source_counts.get('Networking', 0)},
+        {"id_key": "Simplify", "type": "source", "name": f"Simplify ({source_counts.get('Simplify', 0)})", "column": 0, "color": "#3bc4d7", "count": source_counts.get('Simplify', 0)},
         
         # Column 1: Core Consolidation Point
-        {"name": f"Applied ({total_applied})", "column": 1, "color": "#BDBDBD"},
+        {"id_key": "TotalApplied", "type": "root", "name": f"Applied ({total_applied})", "column": 1, "color": "#BDBDBD", "count": total_applied},
         
         # Column 2: Outcomes
-        {"name": f"Active / In Review ({status_counts.get('Applied', 0)})", "column": 2, "color": "#2ecc71"},
-        {"name": f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})", "column": 2, "color": "#f1c40f"},
-        {"name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})", "column": 2, "color": "#e74c3c"},
-        {"name": f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})", "column": 2, "color": "#2ecc71"},
+        {"id_key": "Applied", "type": "status", "name": f"Active / In Review ({status_counts.get('Applied', 0)})", "column": 2, "color": "#2ecc71", "count": status_counts.get('Applied', 0)},
+        {"id_key": "Applied > No Response", "type": "status", "name": f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})", "column": 2, "color": "#f1c40f", "count": status_counts.get('Applied > No Response', 0)},
+        {"id_key": "Applied > Rejected", "type": "status", "name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})", "column": 2, "color": "#e74c3c", "count": status_counts.get('Applied > Rejected', 0)},
+        {"id_key": "Screened", "type": "status", "name": f"Screened ({combined_screened})", "column": 2, "color": "#2ecc71", "count": combined_screened},
         
-        # Column 3: Deep Stage
-        {"name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f"}
+        # Column 3: Dedicated Deep Stages
+        {"id_key": "Screened > No Response", "type": "status", "name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f", "count": status_counts.get('Screened > No Response', 0)},
+        {"id_key": "Screened > Rejected", "type": "status", "name": f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})", "column": 3, "color": "#e74c3c", "count": status_counts.get('Screened > Rejected', 0)}
     ]
+
+    nodes_config = [node for node in raw_nodes_config if node["count"] > 0]
+    active_keys = {n["id_key"] for n in nodes_config}
 
     node_name_to_idx = {n["name"]: i for i, n in enumerate(nodes_config)}
     
     root_node_name = f"Applied ({total_applied})"
     source_to_node = {src: f"{src} ({source_counts.get(src, 0)})" for src in source_counts.keys()}
+    
+    shared_screened_label = f"Screened ({combined_screened})"
     status_to_node = {
         'Applied': f"Active / In Review ({status_counts.get('Applied', 0)})",
         'Applied > No Response': f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})",
         'Applied > Rejected': f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",
-        'Screened': f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})",
-        'Screened > No Response': f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})"
+        'Screened': shared_screened_label,
+        'Screened > No Response': shared_screened_label,
+        'Screened > Rejected': shared_screened_label
     }
 
     links_raw = []
@@ -146,33 +155,45 @@ if all_issues:
         if status not in valid_statuses or src not in source_to_node:
             continue
 
+        if src not in active_keys or "TotalApplied" not in active_keys:
+            continue
+
         src_node = source_to_node[src]
         
-        if status == 'Screened > No Response':
-            dest_node = f"Screened ({status_counts.get('Screened', 0) + status_counts.get('Screened > No Response', 0)})"
-            col4_node_name = f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})"
-            links_raw.append({"source": src_node, "target": root_node_name})
-            links_raw.append({"source": root_node_name, "target": dest_node})
-            links_raw.append({"source": dest_node, "target": col4_node_name})
+        if status in ['Screened > No Response', 'Screened > Rejected']:
+            if "Screened" in active_keys and status in active_keys:
+                dest_node = shared_screened_label
+                col4_node_name = f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})" if status == 'Screened > No Response' else f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})"
+                links_raw.append({"source": src_node, "target": root_node_name})
+                links_raw.append({"source": root_node_name, "target": dest_node})
+                links_raw.append({"source": dest_node, "target": col4_node_name})
         else:
-            dest_node = status_to_node[status]
-            links_raw.append({"source": src_node, "target": root_node_name})
-            links_raw.append({"source": root_node_name, "target": dest_node})
+            if status == 'Screened' and "Screened" not in active_keys:
+                continue
+            if status in status_to_node and status in active_keys:
+                dest_node = status_to_node[status]
+                links_raw.append({"source": src_node, "target": root_node_name})
+                links_raw.append({"source": root_node_name, "target": dest_node})
 
-    links_df = pd.DataFrame(links_raw).groupby(['source', 'target']).size().reset_index(name='value')
-    
     links_config = []
-    for _, r in links_df.iterrows():
-        if r['source'] in node_name_to_idx and r['target'] in node_name_to_idx:
-            links_config.append({
-                "source": node_name_to_idx[r['source']],
-                "target": node_name_to_idx[r['target']],
-                "value": int(r['value'])
-            })
+    if links_raw:
+        links_df = pd.DataFrame(links_raw).groupby(['source', 'target']).size().reset_index(name='value')
+        for _, r in links_df.iterrows():
+            if r['source'] in node_name_to_idx and r['target'] in node_name_to_idx:
+                links_config.append({
+                    "source": node_name_to_idx[r['source']],
+                    "target": node_name_to_idx[r['target']],
+                    "value": int(r['value'])
+                })
+
+    for n in nodes_config:
+        n.pop("id_key", None)
+        n.pop("type", None)
+        n.pop("count", None)
 
     d3_data_json = json.dumps({"nodes": nodes_config, "links": links_config})
 
-    print("👉 Compiling D3.js Layout Template with Aligned Labels...")
+    print("👉 Compiling D3.js Layout Template with Path Highlighting...")
     
     html_template = f"""<!DOCTYPE html>
     <html>
@@ -186,12 +207,15 @@ if all_issues:
             .header {{ text-align: left; margin-bottom: 25px; }}
             .header h2 {{ color: #2c3e50; margin: 0 0 5px 0; }}
             .header p {{ color: #7f8c8d; margin: 0; font-size: 14px; }}
-            .node rect {{ fill-opacity: 0.9; shape-rendering: crispEdges; stroke: #333; stroke-width: 0.5px; }}
-            .node rect:hover {{ fill-opacity: 1; }}
+            .node rect {{ fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: #ffffff; stroke-width: 2px; cursor: pointer; }}
+            .node rect:hover {{ filter: brightness(1.05); }}
             .node text {{ font-size: 12px; font-weight: bold; fill: #2c3e50; pointer-events: none; }}
-            .link {{ fill: none; stroke-opacity: 0.35; }}
-            .link:hover {{ stroke-opacity: 0.6; }}
+            .link {{ fill: none; stroke-opacity: 0.28; transition: stroke-opacity 0.2s, opacity 0.2s; }}
+            .link:hover {{ stroke-opacity: 0.6 !important; }}
             #tooltip {{ position: absolute; padding: 8px 12px; background: rgba(44, 62, 80, 0.95); color: white; border-radius: 4px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }}
+            
+            .faded {{ opacity: 0.08 !important; }}
+            .highlighted-link {{ stroke-opacity: 0.75 !important; }}
         </style>
     </head>
     <body>
@@ -199,7 +223,8 @@ if all_issues:
             <div class="header">
                 <h2>Jira Application Source Pipeline</h2>
                 <p>
-                    Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>.
+                    Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>. 
+                    <span style="color: #2980b9; font-weight: bold; display: block; margin-top: 4px;">💡 Click any node to trace its direct path. Click the canvas background to reset.</span>
                     <span style="display: block; margin-top: 8px; color: #95a5a6; font-weight: bold;">
                         ⏰ Last Synchronized: <span id="local-timestamp">Calculating local time...</span>
                     </span>
@@ -216,10 +241,19 @@ if all_issues:
                   width = +svg.attr("width"),
                   height = +svg.attr("height");
 
+            // 🌟 FIXED background reset handler
+            svg.on("click", function(event) {{
+                if (event.target.tagName === "svg") {{
+                    linkElements.classed("faded", false).classed("highlighted-link", false);
+                    nodeElements.classed("faded", false);
+                    isHighlighted = false;
+                }}
+            }});
+
             const sankey = d3.sankey()
-                .nodeWidth(24)
-                .nodePadding(30)
-                .extent([[10, 10], [width - 180, height - 10]]); // Adjusted edge constraints to save canvas room for text padding
+                .nodeWidth(22)
+                .nodePadding(32)
+                .extent([[10, 10], [width - 180, height - 10]]);
 
             let graph = sankey(graphData);
 
@@ -249,7 +283,7 @@ if all_issues:
                 link.gradientId = gradientId;
             }});
 
-            svg.append("g")
+            const linkElements = svg.append("g")
                 .attr("fill", "none")
                 .selectAll("path")
                 .data(graph.links)
@@ -270,16 +304,20 @@ if all_issues:
                     tooltip.style("opacity", 0);
                 }});
 
-            const node = svg.append("g")
+            const nodeElements = svg.append("g")
                 .selectAll("g")
                 .data(graph.nodes)
                 .enter().append("g")
                 .attr("class", "node")
                 .attr("transform", d => `translate(${{d.x0}},${{d.y0}})`);
 
-            node.append("rect")
-                .attr("height", d => Math.max(2, d.y1 - d.y0))
+            let isHighlighted = false;
+
+            nodeElements.append("rect")
+                .attr("height", d => Math.max(4, d.y1 - d.y0))
                 .attr("width", d => d.x1 - d.x0)
+                .attr("rx", 5)
+                .attr("ry", 5)
                 .style("fill", d => d.color)
                 .on("mouseover", function(event, d) {{
                     tooltip.style("opacity", 1).html(`${{d.name}}`);
@@ -290,10 +328,46 @@ if all_issues:
                 }})
                 .on("mouseout", function() {{
                     tooltip.style("opacity", 0);
+                }})
+                .on("click", function(event, clickedNode) {{
+                    event.stopPropagation();
+                    
+                    const dynamicConnectedNodes = new Set();
+                    const dynamicConnectedLinks = new Set();
+                    
+                    dynamicConnectedNodes.add(clickedNode.index);
+                    
+                    // Trace downstream flow paths
+                    let processingQueue = [clickedNode];
+                    while(processingQueue.length > 0) {{
+                        let current = processingQueue.shift();
+                        current.sourceLinks.forEach(l => {{
+                            dynamicConnectedLinks.add(l);
+                            dynamicConnectedNodes.add(l.target.index);
+                            processingQueue.push(l.target);
+                        }});
+                    }}
+                    
+                    // Trace upstream flow paths
+                    processingQueue = [clickedNode];
+                    while(processingQueue.length > 0) {{
+                        let current = processingQueue.shift();
+                        current.targetLinks.forEach(l => {{
+                            dynamicConnectedLinks.add(l);
+                            dynamicConnectedNodes.add(l.source.index);
+                            processingQueue.push(l.source);
+                        }});
+                    }}
+                    
+                    // Toggle visibility states
+                    linkElements.classed("faded", l => !dynamicConnectedLinks.has(l))
+                                .classed("highlighted-link", l => dynamicConnectedLinks.has(l));
+                                
+                    nodeElements.classed("faded", n => !dynamicConnectedNodes.has(n.index));
+                    isHighlighted = true;
                 }});
 
-            // 🌟 FIXED TEXT LABELS: Unified rule to uniformly position all text tags to the right of the node blocks
-            node.append("text")
+            nodeElements.append("text")
                 .attr("x", d => d.x1 - d.x0 + 12)
                 .attr("y", d => (d.y1 - d.y0) / 2)
                 .attr("dy", "0.35em")
@@ -310,5 +384,5 @@ if all_issues:
     with open("application_sankey.html", "w", encoding="utf-8") as file:
         file.write(html_template)
 
-    print("\n🎉 TEXT BOUNDS BALANCED & RE-COMPILED SUCCESSFULLY!")
+    print("\n🎉 INTERACTIVE PATH TRACING ACTIVATED!")
     print("-> Web asset updated locally as 'application_sankey.html'")
