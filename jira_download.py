@@ -90,6 +90,7 @@ if all_issues:
         if src_lower == 'builtin': return 'Builtin'
         if src_lower == 'networking': return 'Networking'
         if src_lower == 'indeed': return 'Indeed'
+        if src_lower == 'dad': return 'Dad'
         return src
 
     df_clean['Source'] = df_clean['Source'].apply(clean_source)
@@ -109,6 +110,7 @@ if all_issues:
     raw_nodes_config = [
         # Column 0: Sourcing Channels
         {"id_key": "Builtin", "type": "source", "name": f"Builtin ({source_counts.get('Builtin', 0)})", "column": 0, "color": "#07006c", "count": source_counts.get('Builtin', 0)},
+        {"id_key": "Dad", "type": "source", "name": f"Dad ({source_counts.get('Dad', 0)})", "column": 0, "color": "#d4af37", "count": source_counts.get('Dad', 0)},
         {"id_key": "Indeed", "type": "source", "name": f"Indeed ({source_counts.get('Indeed', 0)})", "column": 0, "color": "#2164f3", "count": source_counts.get('Indeed', 0)},
         {"id_key": "LinkedIn", "type": "source", "name": f"LinkedIn ({source_counts.get('LinkedIn', 0)})", "column": 0, "color": "#0072b1", "count": source_counts.get('LinkedIn', 0)},
         {"id_key": "Me", "type": "source", "name": f"Me ({source_counts.get('Me', 0)})", "column": 0, "color": "#27a6f5", "count": source_counts.get('Me', 0)},
