@@ -164,26 +164,27 @@ if all_issues:
             if "Screened" in active_keys and status in active_keys:
                 dest_node = shared_screened_label
                 col4_node_name = f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})" if status == 'Screened > No Response' else f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})"
-                links_raw.append({"source": src_node, "target": root_node_name})
-                links_raw.append({"source": root_node_name, "target": dest_node})
-                links_raw.append({"source": dest_node, "target": col4_node_name})
+                links_raw.append({"source": src_node, "target": root_node_name, "origin": src})
+                links_raw.append({"source": root_node_name, "target": dest_node, "origin": src})
+                links_raw.append({"source": dest_node, "target": col4_node_name, "origin": src})
         else:
             if status == 'Screened' and "Screened" not in active_keys:
                 continue
             if status in status_to_node and status in active_keys:
                 dest_node = status_to_node[status]
-                links_raw.append({"source": src_node, "target": root_node_name})
-                links_raw.append({"source": root_node_name, "target": dest_node})
+                links_raw.append({"source": src_node, "target": root_node_name, "origin": src})
+                links_raw.append({"source": root_node_name, "target": dest_node, "origin": src})
 
     links_config = []
     if links_raw:
-        links_df = pd.DataFrame(links_raw).groupby(['source', 'target']).size().reset_index(name='value')
+        links_df = pd.DataFrame(links_raw).groupby(['source', 'target', 'origin']).size().reset_index(name='value')
         for _, r in links_df.iterrows():
             if r['source'] in node_name_to_idx and r['target'] in node_name_to_idx:
                 links_config.append({
                     "source": node_name_to_idx[r['source']],
                     "target": node_name_to_idx[r['target']],
-                    "value": int(r['value'])
+                    "value": int(r['value']),
+                    "origin_source": r['origin']
                 })
 
     for n in nodes_config:
@@ -193,7 +194,7 @@ if all_issues:
 
     d3_data_json = json.dumps({"nodes": nodes_config, "links": links_config})
 
-    print("👉 Compiling D3.js Layout Template with Path Highlighting...")
+    print("👉 Compiling D3.js Layout Template with Metadata Cohort Filtering...")
     
     html_template = f"""<!DOCTYPE html>
     <html>
@@ -214,8 +215,8 @@ if all_issues:
             .link:hover {{ stroke-opacity: 0.6 !important; }}
             #tooltip {{ position: absolute; padding: 8px 12px; background: rgba(44, 62, 80, 0.95); color: white; border-radius: 4px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }}
             
-            .faded {{ opacity: 0.08 !important; }}
-            .highlighted-link {{ stroke-opacity: 0.75 !important; }}
+            .faded {{ opacity: 0.06 !important; }}
+            .highlighted-link {{ stroke-opacity: 0.8 !important; }}
         </style>
     </head>
     <body>
@@ -224,7 +225,7 @@ if all_issues:
                 <h2>Jira Application Source Pipeline</h2>
                 <p>
                     Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>. 
-                    <span style="color: #2980b9; font-weight: bold; display: block; margin-top: 4px;">💡 Click any node to trace its direct path. Click the canvas background to reset.</span>
+                    <span style="color: #16a085; font-weight: bold; display: block; margin-top: 4px;">🚀 Complete Cohort Highlighting Active: Clicking any source filters exactly where its volumes land across all downstream columns.</span>
                     <span style="display: block; margin-top: 8px; color: #95a5a6; font-weight: bold;">
                         ⏰ Last Synchronized: <span id="local-timestamp">Calculating local time...</span>
                     </span>
@@ -241,7 +242,6 @@ if all_issues:
                   width = +svg.attr("width"),
                   height = +svg.attr("height");
 
-            // 🌟 FIXED background reset handler
             svg.on("click", function(event) {{
                 if (event.target.tagName === "svg") {{
                     linkElements.classed("faded", false).classed("highlighted-link", false);
@@ -292,9 +292,10 @@ if all_issues:
                 .attr("d", d3.sankeyLinkHorizontal())
                 .attr("stroke", (d, i) => `url(#grad-${{i}})`)
                 .style("stroke-width", d => Math.max(1.5, d.width))
+                .attr("data-origin-source", d => d.origin_source)
                 .on("mouseover", function(event, d) {{
                     tooltip.style("opacity", 1)
-                           .html(`${{d.source.name}} &rarr; ${{d.target.name}}<br/>Count: ${{d.value}}`);
+                           .html(`${{d.source.name}} &rarr; ${{d.target.name}}<br/>Cohort Size: ${{d.value}}`);
                 }})
                 .on("mousemove", function(event) {{
                     tooltip.style("left", (event.pageX + 15) + "px")
@@ -334,32 +335,42 @@ if all_issues:
                     
                     const dynamicConnectedNodes = new Set();
                     const dynamicConnectedLinks = new Set();
-                    
                     dynamicConnectedNodes.add(clickedNode.index);
-                    
-                    // Trace downstream flow paths
-                    let processingQueue = [clickedNode];
-                    while(processingQueue.length > 0) {{
-                        let current = processingQueue.shift();
-                        current.sourceLinks.forEach(l => {{
-                            dynamicConnectedLinks.add(l);
-                            dynamicConnectedNodes.add(l.target.index);
-                            processingQueue.push(l.target);
+
+                    let platformFilter = null;
+                    if (clickedNode.column === 0) {{
+                        platformFilter = clickedNode.name.split(" (")[0];
+                    }}
+
+                    if (platformFilter) {{
+                        linkElements.each(function(l) {{
+                            if (l.origin_source === platformFilter) {{
+                                dynamicConnectedLinks.add(l);
+                                dynamicConnectedNodes.add(l.source.index);
+                                dynamicConnectedNodes.add(l.target.index);
+                            }}
                         }});
+                    }} else {{
+                        let processingQueue = [clickedNode];
+                        while(processingQueue.length > 0) {{
+                            let current = processingQueue.shift();
+                            current.sourceLinks.forEach(l => {{
+                                dynamicConnectedLinks.add(l);
+                                dynamicConnectedNodes.add(l.target.index);
+                                processingQueue.push(l.target);
+                            }});
+                        }}
+                        processingQueue = [clickedNode];
+                        while(processingQueue.length > 0) {{
+                            let current = processingQueue.shift();
+                            current.targetLinks.forEach(l => {{
+                                dynamicConnectedLinks.add(l);
+                                dynamicConnectedNodes.add(l.source.index);
+                                processingQueue.push(l.source);
+                            }});
+                        }}
                     }}
                     
-                    // Trace upstream flow paths
-                    processingQueue = [clickedNode];
-                    while(processingQueue.length > 0) {{
-                        let current = processingQueue.shift();
-                        current.targetLinks.forEach(l => {{
-                            dynamicConnectedLinks.add(l);
-                            dynamicConnectedNodes.add(l.source.index);
-                            processingQueue.push(l.source);
-                        }});
-                    }}
-                    
-                    // Toggle visibility states
                     linkElements.classed("faded", l => !dynamicConnectedLinks.has(l))
                                 .classed("highlighted-link", l => dynamicConnectedLinks.has(l));
                                 
@@ -384,5 +395,5 @@ if all_issues:
     with open("application_sankey.html", "w", encoding="utf-8") as file:
         file.write(html_template)
 
-    print("\n🎉 INTERACTIVE PATH TRACING ACTIVATED!")
+    print("\n🎉 SMART DATA COHORT TRACKING ACTIVATED!")
     print("-> Web asset updated locally as 'application_sankey.html'")
