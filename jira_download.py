@@ -196,28 +196,85 @@ if all_issues:
 
     d3_data_json = json.dumps({"nodes": nodes_config, "links": links_config})
 
-    print("👉 Compiling D3.js Layout Template with Metadata Cohort Filtering...")
+    print("👉 Compiling D3.js Layout Template with Proportional Isolation & Fluid Layout...")
     
     html_template = f"""<!DOCTYPE html>
     <html>
     <head>
         <title>Jira Application Source Pipeline (D3.js)</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
         <style>
-            body {{ font-family: Arial, sans-serif; background-color: #f4f6f9; padding: 30px; margin: 0; display: flex; flex-direction: column; align-items: center; }}
-            .container {{ width: 1250px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 25px; box-sizing: border-box; }}
+            body {{ 
+                font-family: Arial, sans-serif; 
+                background-color: #f4f6f9; 
+                padding: 10px; 
+                margin: 0; 
+                display: flex; 
+                flex-direction: column; 
+                align-items: center; 
+            }}
+            .container {{ 
+                width: 100%; 
+                max-width: 1250px; 
+                background: white; 
+                border-radius: 8px; 
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+                padding: 15px; 
+                box-sizing: border-box; 
+                position: relative; 
+            }}
             .header {{ text-align: left; margin-bottom: 25px; }}
-            .header h2 {{ color: #2c3e50; margin: 0 0 5px 0; }}
-            .header p {{ color: #7f8c8d; margin: 0; font-size: 14px; }}
+            .header h2 {{ color: #2c3e50; margin: 0 0 5px 0; font-size: 1.5rem; }}
+            .header p {{ color: #7f8c8d; margin: 0; font-size: 13px; }}
+            
+            .svg-wrapper {{
+                width: 100%;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }}
+            #sankey_svg {{ 
+                width: 100%; 
+                height: auto; 
+                min-width: 850px;
+            }}
+            
             .node rect {{ fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: #ffffff; stroke-width: 2px; cursor: pointer; }}
             .node rect:hover {{ filter: brightness(1.05); }}
-            .node text {{ font-size: 12px; font-weight: bold; fill: #2c3e50; pointer-events: none; }}
-            .link {{ fill: none; stroke-opacity: 0.28; transition: stroke-opacity 0.2s, opacity 0.2s; }}
+            .node text {{ font-size: 11px; font-weight: bold; fill: #2c3e50; pointer-events: none; }}
+            .link {{ fill: none; stroke-opacity: 0.28; transition: stroke-opacity 0.2s, opacity 0.2s, stroke-width 0.2s; }}
             .link:hover {{ stroke-opacity: 0.6 !important; }}
-            #tooltip {{ position: absolute; padding: 8px 12px; background: rgba(44, 62, 80, 0.95); color: white; border-radius: 4px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }}
+            #tooltip {{ position: absolute; padding: 8px 12px; background: rgba(44, 62, 80, 0.95); color: white; border-radius: 4px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 100; }}
             
-            .faded {{ opacity: 0.06 !important; }}
+            #cohort-hud {{ 
+                position: relative; 
+                top: 0; 
+                right: 0; 
+                background: #2c3e50; 
+                color: white; 
+                padding: 15px; 
+                border-radius: 6px; 
+                box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
+                font-size: 12px; 
+                display: none; 
+                width: 100%; 
+                box-sizing: border-box; 
+                line-height: 1.5;
+                margin-bottom: 15px;
+            }}
+            #cohort-hud h4 {{ margin: 0 0 8px 0; color: #2ecc71; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; font-size: 13px; }}
+            #cohort-hud ul {{ margin: 0; padding-left: 18px; }}
+            
+            @media (min-width: 768px) {{
+                body {{ padding: 30px; }}
+                .container {{ padding: 25px; }}
+                .header h2 {{ font-size: 1.8rem; }}
+                #cohort-hud {{ position: absolute; top: 25px; right: 25px; width: 280px; margin-bottom: 0; }}
+                .node text {{ font-size: 12px; }}
+            }}
+
+            .faded {{ opacity: 0.04 !important; }}
             .highlighted-link {{ stroke-opacity: 0.8 !important; }}
         </style>
     </head>
@@ -227,30 +284,44 @@ if all_issues:
                 <h2>Jira Application Source Pipeline</h2>
                 <p>
                     Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>. 
-                    <span style="color: #16a085; font-weight: bold; display: block; margin-top: 4px;">🚀 Complete Cohort Highlighting Active: Clicking any source filters exactly where its volumes land across all downstream columns.</span>
+                    <span style="color: #16a085; font-weight: bold; display: block; margin-top: 4px;">🚀 Exact Path Decomposition Active: Clicking a status dynamically rescales upstream link thickness to reflect ONLY the true count coming from each platform.</span>
                     <span style="display: block; margin-top: 8px; color: #95a5a6; font-weight: bold;">
                         ⏰ Last Synchronized: <span id="local-timestamp">Calculating local time...</span>
                     </span>
                 </p>
             </div>
-            <svg id="sankey_svg" width="1200" height="550"></svg>
+            <div id="cohort-hud"></div>
+            <div class="svg-wrapper">
+                <svg id="sankey_svg" viewBox="0 0 1200 550" preserveAspectRatio="xMinYMin meet"></svg>
+            </div>
         </div>
         <div id="tooltip"></div>
 
         <script>
             const graphData = {d3_data_json};
 
+            // Deep clone original line widths for scaling operations
+            graphData.links.forEach(l => {{
+                l.originalWidth = l.width;
+            }});
+
             const svg = d3.select("#sankey_svg"),
-                  width = +svg.attr("width"),
-                  height = +svg.attr("height");
+                  width = 1200,
+                  height = 550;
 
             svg.on("click", function(event) {{
                 if (event.target.tagName === "svg") {{
-                    linkElements.classed("faded", false).classed("highlighted-link", false);
-                    nodeElements.classed("faded", false);
-                    isHighlighted = false;
+                    resetSankeyEffects();
                 }}
             }});
+
+            function resetSankeyEffects() {{
+                linkElements.classed("faded", false).classed("highlighted-link", false)
+                            .style("stroke-width", d => Math.max(1.5, d.originalWidth));
+                nodeElements.classed("faded", false);
+                d3.select("#cohort-hud").style("display", "none");
+                isHighlighted = false;
+            }}
 
             const sankey = d3.sankey()
                 .nodeWidth(22)
@@ -296,8 +367,12 @@ if all_issues:
                 .style("stroke-width", d => Math.max(1.5, d.width))
                 .attr("data-origin-source", d => d.origin_source)
                 .on("mouseover", function(event, d) {{
+                    let displayVal = d.value;
+                    if (isHighlighted && d.currentScaledValue !== undefined) {{
+                        displayVal = `${{d.currentScaledValue}} of ${{d.value}}`;
+                    }}
                     tooltip.style("opacity", 1)
-                           .html(`${{d.source.name}} &rarr; ${{d.target.name}}<br/>Cohort Size: ${{d.value}}`);
+                           .html(`${{d.source.name}} &rarr; ${{d.target.name}}<br/>Cohort Volume: ${{displayVal}}`);
                 }})
                 .on("mousemove", function(event) {{
                     tooltip.style("left", (event.pageX + 15) + "px")
@@ -335,48 +410,98 @@ if all_issues:
                 .on("click", function(event, clickedNode) {{
                     event.stopPropagation();
                     
-                    const dynamicConnectedNodes = new Set();
-                    const dynamicConnectedLinks = new Set();
-                    dynamicConnectedNodes.add(clickedNode.index);
+                    const activeNodes = new Set();
+                    const activeLinks = new Set();
+                    activeNodes.add(clickedNode.index);
 
-                    let platformFilter = null;
+                    // Reset link references
+                    graph.links.forEach(l => l.currentScaledValue = undefined);
+
+                    // Case A: Clicking Column 0 (Sourcing Channels) - Forward pass unaltered
                     if (clickedNode.column === 0) {{
-                        platformFilter = clickedNode.name.split(" (")[0];
-                    }}
-
-                    if (platformFilter) {{
+                        let platformFilter = clickedNode.name.split(" (")[0];
                         linkElements.each(function(l) {{
                             if (l.origin_source === platformFilter) {{
-                                dynamicConnectedLinks.add(l);
-                                dynamicConnectedNodes.add(l.source.index);
-                                dynamicConnectedNodes.add(l.target.index);
+                                activeLinks.add(l);
+                                activeNodes.add(l.source.index);
+                                activeNodes.add(l.target.index);
                             }}
                         }});
-                    }} else {{
-                        let processingQueue = [clickedNode];
-                        while(processingQueue.length > 0) {{
-                            let current = processingQueue.shift();
-                            current.sourceLinks.forEach(l => {{
-                                dynamicConnectedLinks.add(l);
-                                dynamicConnectedNodes.add(l.target.index);
-                                processingQueue.push(l.target);
+                        d3.select("#cohort-hud").style("display", "none");
+                    }}
+                    // Case B: Clicking Column 1 (Total Consolidation)
+                    else if (clickedNode.column === 1) {{
+                        linkElements.each(function(l) {{
+                            activeLinks.add(l);
+                            activeNodes.add(l.source.index);
+                            activeNodes.add(l.target.index);
+                        }});
+                        d3.select("#cohort-hud").style("display", "none");
+                    }}
+                    // Case C: Target Node Status Click (Column 2 or 3) - PROPORTIONAL BREAKDOWN PATH ISOLATION
+                    else {{
+                        let exactSlices = {{}};
+                        let targetLinksToEvaluate = [];
+
+                        // If it's a deep stage node (Col 3), gather the incoming path from Col 2 first
+                        if (clickedNode.column === 3) {{
+                            clickedNode.targetLinks.forEach(l => {{
+                                activeLinks.add(l);
+                                activeNodes.add(l.source.index);
+                                targetLinksToEvaluate.push(l);
                             }});
+                        }} else {{
+                            // Column 2 Node
+                            clickedNode.targetLinks.forEach(l => targetLinksToEvaluate.push(l));
                         }}
-                        processingQueue = [clickedNode];
-                        while(processingQueue.length > 0) {{
-                            let current = processingQueue.shift();
-                            current.targetLinks.forEach(l => {{
-                                dynamicConnectedLinks.add(l);
-                                dynamicConnectedNodes.add(l.source.index);
-                                processingQueue.push(l.source);
-                            }});
-                        }}
+
+                        // Determine exact volumes ending in this selection by evaluating origin metadata properties
+                        targetLinksToEvaluate.forEach(link => {{
+                            let platform = link.origin_source;
+                            let volume = link.value;
+                            exactSlices[platform] = (exactSlices[platform] || 0) + volume;
+                        }});
+
+                        // Update standard active targets for current selected node branches
+                        clickedNode.targetLinks.forEach(l => {{ activeLinks.add(l); activeNodes.add(l.source.index); }});
+                        clickedNode.sourceLinks.forEach(l => {{ activeLinks.add(l); activeNodes.add(l.target.index); }});
+
+                        // Rescale Upstream Links proportionally from Column 0 to Column 1
+                        linkElements.each(function(l) {{
+                            if (l.source.column === 0 && l.target.column === 1) {{
+                                if (exactSlices[l.origin_source] !== undefined) {{
+                                    activeLinks.add(l);
+                                    activeNodes.add(l.source.index);
+                                    
+                                    // Save the exact slice ending in this state
+                                    let targetedCount = exactSlices[l.origin_source];
+                                    l.currentScaledValue = targetedCount;
+                                    
+                                    // Proportional scaling math for rendering thickness transformation
+                                    let scaleFactor = targetedCount / l.value;
+                                    let adjustedWidth = l.originalWidth * scaleFactor;
+                                    
+                                    d3.select(this).style("stroke-width", Math.max(2, adjustedWidth));
+                                }}
+                            }}
+                        }});
+
+                        // Generate HUD overlay detailing specific numbers
+                        let cleanTitle = clickedNode.name.split(" (")[0];
+                        let hudHtml = `<h4>${{cleanTitle}} Source Cohorts</h4><ul>`;
+                        Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]).forEach(p => {{
+                            hudHtml += `<li><strong>${{p}}</strong>: ${{exactSlices[p]}} application(s)</li>`;
+                        }});
+                        hudHtml += "</ul><p style='margin:10px 0 0 0; font-size:10px; color:#bdc3c7;'>Click chart background to clear.</p>";
+                        
+                        d3.select("#cohort-hud").html(hudHtml).style("display", "block");
                     }}
                     
-                    linkElements.classed("faded", l => !dynamicConnectedLinks.has(l))
-                                .classed("highlighted-link", l => dynamicConnectedLinks.has(l));
+                    // Trigger visual fading adjustments across everything else
+                    linkElements.classed("faded", l => !activeLinks.has(l))
+                                .classed("highlighted-link", l => activeLinks.has(l));
                                 
-                    nodeElements.classed("faded", n => !dynamicConnectedNodes.has(n.index));
+                    nodeElements.classed("faded", n => !activeNodes.has(n.index));
                     isHighlighted = true;
                 }});
 
