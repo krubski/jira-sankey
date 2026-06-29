@@ -417,17 +417,37 @@ if all_issues:
                     // Reset link references
                     graph.links.forEach(l => l.currentScaledValue = undefined);
 
-                    // Case A: Clicking Column 0 (Sourcing Channels) - Forward pass unaltered
+                    // Case A: Clicking Column 0 (Sourcing Channels) - Forward pass + Downstream HUD
                     if (clickedNode.column === 0) {{
                         let platformFilter = clickedNode.name.split(" (")[0];
+                        let downstreamStatuses = {{}};
+
                         linkElements.each(function(l) {{
                             if (l.origin_source === platformFilter) {{
                                 activeLinks.add(l);
                                 activeNodes.add(l.source.index);
                                 activeNodes.add(l.target.index);
+
+                                // Capture the final status targets (Columns 2 and 3)
+                                if (l.target.column >= 2) {{
+                                    let statusName = l.target.name.split(" (")[0];
+                                    // If it's the combined Screened node, skip it to avoid double-counting the sub-stages
+                                    if (statusName === "Screened" && l.target.column === 2 && clickedNode.sourceLinks.some(sl => sl.target.column === 3)) {{
+                                        return;
+                                    }}
+                                    downstreamStatuses[statusName] = (downstreamStatuses[statusName] || 0) + l.value;
+                                }}
                             }}
                         }});
-                        d3.select("#cohort-hud").style("display", "none");
+
+                        // Generate HUD overlay detailing specific downstream distribution
+                        let hudHtml = `<h4>${{platformFilter}} Status Breakdown</h4><ul>`;
+                        Object.keys(downstreamStatuses).sort((a,b) => downstreamStatuses[b] - downstreamStatuses[a]).forEach(s => {{
+                            hudHtml += `<li><strong>${{s}}</strong>: ${{downstreamStatuses[s]}} application(s)</li>`;
+                        }});
+                        hudHtml += "</ul><p style='margin:10px 0 0 0; font-size:10px; color:#bdc3c7;'>Click chart background to clear.</p>";
+                        
+                        d3.select("#cohort-hud").html(hudHtml).style("display", "block");
                     }}
                     // Case B: Clicking Column 1 (Total Consolidation)
                     else if (clickedNode.column === 1) {{
@@ -443,7 +463,6 @@ if all_issues:
                         let exactSlices = {{}};
                         let targetLinksToEvaluate = [];
 
-                        // If it's a deep stage node (Col 3), gather the incoming path from Col 2 first
                         if (clickedNode.column === 3) {{
                             clickedNode.targetLinks.forEach(l => {{
                                 activeLinks.add(l);
@@ -451,33 +470,27 @@ if all_issues:
                                 targetLinksToEvaluate.push(l);
                             }});
                         }} else {{
-                            // Column 2 Node
                             clickedNode.targetLinks.forEach(l => targetLinksToEvaluate.push(l));
                         }}
 
-                        // Determine exact volumes ending in this selection by evaluating origin metadata properties
                         targetLinksToEvaluate.forEach(link => {{
                             let platform = link.origin_source;
                             let volume = link.value;
                             exactSlices[platform] = (exactSlices[platform] || 0) + volume;
                         }});
 
-                        // Update standard active targets for current selected node branches
                         clickedNode.targetLinks.forEach(l => {{ activeLinks.add(l); activeNodes.add(l.source.index); }});
                         clickedNode.sourceLinks.forEach(l => {{ activeLinks.add(l); activeNodes.add(l.target.index); }});
 
-                        // Rescale Upstream Links proportionally from Column 0 to Column 1
                         linkElements.each(function(l) {{
                             if (l.source.column === 0 && l.target.column === 1) {{
                                 if (exactSlices[l.origin_source] !== undefined) {{
                                     activeLinks.add(l);
                                     activeNodes.add(l.source.index);
                                     
-                                    // Save the exact slice ending in this state
                                     let targetedCount = exactSlices[l.origin_source];
                                     l.currentScaledValue = targetedCount;
                                     
-                                    // Proportional scaling math for rendering thickness transformation
                                     let scaleFactor = targetedCount / l.value;
                                     let adjustedWidth = l.originalWidth * scaleFactor;
                                     
@@ -486,7 +499,6 @@ if all_issues:
                             }}
                         }});
 
-                        // Generate HUD overlay detailing specific numbers
                         let cleanTitle = clickedNode.name.split(" (")[0];
                         let hudHtml = `<h4>${{cleanTitle}} Source Cohorts</h4><ul>`;
                         Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]).forEach(p => {{
@@ -497,7 +509,6 @@ if all_issues:
                         d3.select("#cohort-hud").html(hudHtml).style("display", "block");
                     }}
                     
-                    // Trigger visual fading adjustments across everything else
                     linkElements.classed("faded", l => !activeLinks.has(l))
                                 .classed("highlighted-link", l => activeLinks.has(l));
                                 
