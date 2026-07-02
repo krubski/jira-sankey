@@ -91,6 +91,7 @@ if all_issues:
         if src_lower == 'networking': return 'Networking'
         if src_lower == 'indeed': return 'Indeed'
         if src_lower == 'dad': return 'Dad'
+        if src_lower == 'scoutify': return 'Scoutify'
         return src
 
     df_clean['Source'] = df_clean['Source'].apply(clean_source)
@@ -115,6 +116,7 @@ if all_issues:
         {"id_key": "LinkedIn", "type": "source", "name": f"LinkedIn ({source_counts.get('LinkedIn', 0)})", "column": 0, "color": "#0072b1", "count": source_counts.get('LinkedIn', 0)},
         {"id_key": "Me", "type": "source", "name": f"Me ({source_counts.get('Me', 0)})", "column": 0, "color": "#27a6f5", "count": source_counts.get('Me', 0)},
         {"id_key": "Networking", "type": "source", "name": f"Networking ({source_counts.get('Networking', 0)})", "column": 0, "color": "#fa9214", "count": source_counts.get('Networking', 0)},
+        {"id_key": "Scoutify", "type": "source", "name": f"Scoutify ({source_counts.get('Scoutify', 0)})", "column": 0, "color": "#7bcd9d", "count": source_counts.get('Scoutify', 0)},
         {"id_key": "Simplify", "type": "source", "name": f"Simplify ({source_counts.get('Simplify', 0)})", "column": 0, "color": "#3bc4d7", "count": source_counts.get('Simplify', 0)},
         
         # Column 1: Core Consolidation Point
