@@ -537,3 +537,44 @@ if all_issues:
 
     print("\n🎉 SMART DATA COHORT TRACKING ACTIVATED!")
     print("-> Web asset updated locally as 'application_sankey.html'")
+
+    # =========================================================================
+    # ADVANCED TARGET SNIPER: Track the 1 Missing Drop out
+    # =========================================================================
+    print("\n🔍 Simulating Sankey Pipeline for LinkedIn -> Applied > Rejected...")
+    
+    # Isolate just the 9 issues you found
+    target_issues = df_clean[
+        (df_clean['Source'].str.lower().str.strip() == 'linkedin') & 
+        (df_clean['Status'].str.lower().str.strip() == 'applied > rejected')
+    ]
+    
+    # We need to compute these exactly how your script does downstream
+    source_counts_debug = df_clean[df_clean['Status'].isin(valid_statuses)]['Source'].value_counts().to_dict()
+    source_to_node_debug = {src: f"{src} ({source_counts_debug.get(src, 0)})" for src in source_counts_debug.keys()}
+    
+    for idx, row in target_issues.iterrows():
+        src = row['Source']
+        status = row['Status']
+        
+        print(f"\nEvaluating Key: {idx} | Summary: '{row['Summary']}'")
+        print(f"  -> Extracted values after cleaning: Source='{src}', Status='{status}'")
+        
+        # Condition 1: Check status array validation
+        if status not in valid_statuses:
+            print(f"  ❌ DROPPED: Status '{status}' is not in your valid_statuses list.")
+            continue
+            
+        # Condition 2: Check active source registration map
+        if src not in source_to_node_debug:
+            print(f"  ❌ DROPPED: Source string '{src}' failed mapping check! Not found in source_to_node keys.")
+            print(f"     Available keys are: {list(source_to_node_debug.keys())}")
+            continue
+            
+        # Condition 3: Check if node configuration has it registered
+        if src not in active_keys:
+            print(f"  ❌ DROPPED: '{src}' is missing from active_keys. Is it configured in raw_nodes_config?")
+            continue
+            
+        print("  ✅ PASSED: This issue should be appearing on the chart perfectly.")
+    print("=========================================================================\n")
