@@ -351,10 +351,30 @@ if all_issues:
                     linkElements.each(function(l) {{ activeLinks.add(l); activeNodes.add(l.source.index); activeNodes.add(l.target.index); }});
                 }} else {{
                     let exactSlices = {{}}, targetLinksToEvaluate = [];
-                    if (clickedNode.column === 3) {{ clickedNode.targetLinks.forEach(l => {{ activeLinks.add(l); activeNodes.add(l.source.index); targetLinksToEvaluate.push(l); }}); }} else {{ clickedNode.targetLinks.forEach(l => targetLinksToEvaluate.push(l)); }}
+                    clickedNode.targetLinks.forEach(l => {{ targetLinksToEvaluate.push(l); }});
                     targetLinksToEvaluate.forEach(link => {{ exactSlices[link.origin_source] = (exactSlices[link.origin_source] || 0) + link.value; }});
-                    clickedNode.targetLinks.forEach(l => {{ activeLinks.add(l); activeNodes.add(l.source.index); }}); clickedNode.sourceLinks.forEach(l => {{ activeLinks.add(l); activeNodes.add(l.target.index); }});
-                    linkElements.each(function(l) {{ if (l.source.column === 0 && l.target.column === 1 && exactSlices[l.origin_source] !== undefined) {{ activeLinks.add(l); activeNodes.add(l.source.index); d3.select(this).style("stroke-width", Math.max(2, l.originalWidth * (exactSlices[l.origin_source] / l.value))); }} }});
+                    
+                    linkElements.each(function(l) {{ 
+                        if (exactSlices[l.origin_source] !== undefined) {{
+                            if (l.source.column === 0 && l.target.column === 1) {{
+                                activeLinks.add(l); 
+                                activeNodes.add(l.source.index);
+                                activeNodes.add(l.target.index);
+                                d3.select(this).style("stroke-width", Math.max(2, l.originalWidth * (exactSlices[l.origin_source] / l.value))); 
+                            }} 
+                            else if (l.source.column === 1 && l.target.column === 2 && l.target.name.startsWith("Screened")) {{
+                                activeLinks.add(l);
+                                activeNodes.add(l.source.index);
+                                activeNodes.add(l.target.index);
+                            }}
+                            else if (l.source.column === 2 && l.target.column === 3 && l.target.index === clickedNode.index) {{
+                                activeLinks.add(l);
+                                activeNodes.add(l.source.index);
+                                activeNodes.add(l.target.index);
+                            }}
+                        }} 
+                    }});
+                    
                     let hudHtml = `<h4>${{clickedNode.name.split(" (")[0]}} Source Cohorts</h4><ul>`;
                     Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]).forEach(p => {{ hudHtml += `<li><strong>${{p}}</strong>: ${{exactSlices[p]}} application(s)</li>`; }});
                     d3.select("#cohort-hud").html(hudHtml).style("display", "block");
@@ -370,13 +390,11 @@ if all_issues:
     </html>
     """
 
-
     # ==========================================
     # 7. ABSOLUTE DIRECTORY FILE WRITE
     # ==========================================
     print("\n6. Writing 'application_sankey.html' file locally...")
     try:
-        # Dynamically identify folder where jira_download.py is running
         script_dir = os.path.dirname(os.path.abspath(__file__))
         target_path = os.path.join(script_dir, "application_sankey.html")
         
