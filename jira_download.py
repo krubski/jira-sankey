@@ -30,6 +30,9 @@ if JIRA_URL and JIRA_URL.startswith('http'):
 else:
     api_url = f'https://{JIRA_URL}/rest/api/3/search/jql'
 
+# Define Unicode token for the 🥇 (Gold Medal) emoji to keep f-string building simple
+favicon_emoji = "\U0001F947"
+
 
 # ==========================================
 # 2. JIRA API EXTRACTION LOOP
@@ -263,6 +266,8 @@ if all_issues:
     <head>
         <title>Jira Application Source Pipeline (D3.js)</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!-- Inline Data URI SVG Favicon pulling from the 🥇 Unicode point -->
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>{favicon_emoji}</text></svg>">
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
         <style>
@@ -356,17 +361,29 @@ if all_issues:
                     
                     linkElements.each(function(l) {{ 
                         if (exactSlices[l.origin_source] !== undefined) {{
+                            // Column 0 -> 1 (Platform to Applied)
                             if (l.source.column === 0 && l.target.column === 1) {{
                                 activeLinks.add(l); 
                                 activeNodes.add(l.source.index);
                                 activeNodes.add(l.target.index);
                                 d3.select(this).style("stroke-width", Math.max(2, l.originalWidth * (exactSlices[l.origin_source] / l.value))); 
                             }} 
-                            else if (l.source.column === 1 && l.target.column === 2 && l.target.name.startsWith("Screened")) {{
-                                activeLinks.add(l);
-                                activeNodes.add(l.source.index);
-                                activeNodes.add(l.target.index);
+                            // Column 1 -> 2 (Applied to Stage 2 Outcomes)
+                            else if (l.source.column === 1 && l.target.column === 2) {{
+                                // Direct match if we clicked a Column 2 outcome node
+                                if (clickedNode.column === 2 && l.target.index === clickedNode.index) {{
+                                    activeLinks.add(l);
+                                    activeNodes.add(l.source.index);
+                                    activeNodes.add(l.target.index);
+                                }} 
+                                // Route back through the Screened node if we clicked deep in Column 3
+                                else if (clickedNode.column === 3 && l.target.name.startsWith("Screened")) {{
+                                    activeLinks.add(l);
+                                    activeNodes.add(l.source.index);
+                                    activeNodes.add(l.target.index);
+                                }}
                             }}
+                            // Column 2 -> 3 (Screened to Deep Stages)
                             else if (l.source.column === 2 && l.target.column === 3 && l.target.index === clickedNode.index) {{
                                 activeLinks.add(l);
                                 activeNodes.add(l.source.index);
