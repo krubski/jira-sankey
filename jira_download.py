@@ -172,7 +172,7 @@ if all_issues:
         {"id_key": "Applied > Rejected",        "type": "status", "name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",        "column": 2, "color": "#e74c3c", "count": status_counts.get('Applied > Rejected', 0)},
         {"id_key": "Screened",                  "type": "status", "name": f"Screened ({combined_screened})",                                            "column": 2, "color": "#2ecc71", "count": combined_screened},
         
-        # Column 3: Dedicated Deep Stages (Interview specifics)
+        # Column 3: Dedicated Deep Stages
         {"id_key": "Screened > Pending",     "type": "status", "name": f"Screened > Pending ({status_counts.get('Screened > Pending', 0)})",     "column": 3, "color": "#2ecc71", "count": status_counts.get('Screened > Pending', 0)},
         {"id_key": "Screened > No Response", "type": "status", "name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f", "count": status_counts.get('Screened > No Response', 0)},
         {"id_key": "Screened > Rejected",    "type": "status", "name": f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})",   "column": 3, "color": "#e74c3c", "count": status_counts.get('Screened > Rejected', 0)}
@@ -271,7 +271,7 @@ if all_issues:
     # 6. D3.JS RUNTIME HTML TEMPLATE GENERATION
     # ==========================================
     print("\n5. Compiling HTML template data with Unified Light/Dark Theme variables...")
-    html_template = f"""<!DOCTYPE html>
+    html_template = '''<!DOCTYPE html>
     <html>
     <head>
         <title>Jira Application Source Pipeline (D3.js)</title>
@@ -281,12 +281,12 @@ if all_issues:
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
         <!-- Inline Data URI SVG Favicon pulling from the 🥇 Unicode point -->
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>{favicon_emoji}</text></svg>">
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>''' + favicon_emoji + '''</text></svg>">
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
         <style>
             /* Theming Variables (Default: Dark Mode) */
-            :root {{
+            :root {
                 --bg-body: #0f172a;
                 --container-bg: #1e293b;
                 --container-border: #334155;
@@ -311,10 +311,10 @@ if all_issues:
                 --toggle-text-inactive: #94a3b8;
                 --toggle-text-active: #f8fafc;
                 --toggle-border: #475569;
-            }}
+            }
 
             /* Light Mode Theme Overrides */
-            [data-theme="light"] {{
+            [data-theme="light"] {
                 --bg-body: #f8fafc;
                 --container-bg: #ffffff;
                 --container-border: #e2e8f0;
@@ -339,18 +339,18 @@ if all_issues:
                 --toggle-text-inactive: #64748b;
                 --toggle-text-active: #0f172a;
                 --toggle-border: #cbd5e1;
-            }}
+            }
 
-            body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 15px; margin: 0; display: flex; flex-direction: column; align-items: center; transition: background-color 0.3s ease; }}
-            .container {{ width: 100%; max-width: 1280px; background: var(--container-bg); border: 1px solid var(--container-border); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); padding: 20px; box-sizing: border-box; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }}
+            body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 15px; margin: 0; display: flex; flex-direction: column; align-items: center; transition: background-color 0.3s ease; }
+            .container { width: 100%; max-width: 1280px; background: var(--container-bg); border: 1px solid var(--container-border); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); padding: 20px; box-sizing: border-box; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }
             
             /* Header Styling */
-            .header-layout {{ display: flex; flex-direction: column; gap: 20px; margin-bottom: 25px; position: relative; }}
-            @media (min-width: 850px) {{
-                .header-layout {{ display: grid; grid-template-columns: 1fr 340px; align-items: start; }}
-            }}
+            .header-layout { display: flex; flex-direction: column; gap: 20px; margin-bottom: 25px; position: relative; }
+            @media (min-width: 850px) {
+                .header-layout { display: grid; grid-template-columns: 1fr 340px; align-items: start; }
+            }
 
-            .title-area h2 {{ 
+            .title-area h2 { 
                 font-family: 'Space Grotesk', sans-serif;
                 color: var(--text-main); 
                 margin: 0 0 6px 0; 
@@ -361,14 +361,14 @@ if all_issues:
                 align-items: center;
                 gap: 12px;
                 flex-wrap: wrap;
-            }}
-            .title-area p {{ 
+            }
+            .title-area p { 
                 color: var(--text-sub); 
                 margin: 0 0 8px 0; 
                 font-size: 13.5px; 
                 line-height: 1.5;
-            }}
-            .title-area #local-timestamp {{
+            }
+            .title-area #local-timestamp {
                 font-family: 'Fira Code', monospace;
                 font-size: 11px;
                 background: var(--timestamp-bg);
@@ -377,10 +377,10 @@ if all_issues:
                 border-radius: 12px;
                 color: var(--timestamp-color);
                 font-weight: 500;
-            }}
+            }
 
             /* Modern Segmented Toggle Switch to the right of 'pipeline' in header */
-            .theme-switch {{
+            .theme-switch {
                 display: inline-flex;
                 align-items: center;
                 background: var(--toggle-track-bg);
@@ -393,8 +393,8 @@ if all_issues:
                 margin-left: 8px;
                 box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
                 transition: background-color 0.3s ease, border-color 0.3s ease;
-            }}
-            .theme-option {{
+            }
+            .theme-option {
                 font-family: 'Fira Code', monospace;
                 font-size: 11px;
                 font-weight: 600;
@@ -405,88 +405,88 @@ if all_issues:
                 gap: 4px;
                 color: var(--toggle-text-inactive);
                 transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            }}
+            }
             .theme-switch[data-active="light"] .light-opt,
-            .theme-switch[data-active="dark"] .dark-opt {{
+            .theme-switch[data-active="dark"] .dark-opt {
                 background: var(--toggle-knob-bg);
                 color: var(--toggle-text-active);
                 box-shadow: 0 2px 5px rgba(0,0,0,0.15);
-            }}
+            }
 
             /* Unified KPI Panel Styling */
-            .kpi-panel {{
+            .kpi-panel {
                 background: var(--panel-bg);
                 border: 1px solid var(--panel-border);
                 border-radius: 12px;
                 padding: 14px;
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
                 transition: background-color 0.3s ease, border-color 0.3s ease;
-            }}
-            .kpi-badge-row {{
+            }
+            .kpi-badge-row {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
                 margin-bottom: 12px;
-            }}
-            .kpi-label {{
+            }
+            .kpi-label {
                 font-family: 'Fira Code', monospace;
                 font-size: 10px;
                 text-transform: uppercase;
                 letter-spacing: 0.8px;
                 color: var(--panel-label);
                 font-weight: 700;
-            }}
-            .kpi-focus-badge {{
+            }
+            .kpi-focus-badge {
                 font-family: 'Space Grotesk', sans-serif;
                 font-size: 11px;
                 font-weight: 700;
                 padding: 3px 10px;
                 border-radius: 20px;
                 transition: all 0.3s ease;
-            }}
+            }
 
             /* 2x2 Stat Grid */
-            .kpi-grid {{
+            .kpi-grid {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 8px;
-            }}
-            .kpi-card {{
+            }
+            .kpi-card {
                 background: var(--card-bg);
                 border: 1px solid var(--card-border);
                 border-radius: 8px;
                 padding: 8px 10px;
                 transition: background-color 0.3s ease, border-color 0.3s ease;
-            }}
-            .kpi-card .card-title {{
+            }
+            .kpi-card .card-title {
                 font-family: 'Fira Code', monospace;
                 font-size: 9.5px;
                 text-transform: uppercase;
                 color: var(--card-title);
                 font-weight: 600;
                 letter-spacing: 0.5px;
-            }}
-            .kpi-card .card-val {{
+            }
+            .kpi-card .card-val {
                 font-family: 'Space Grotesk', sans-serif;
                 font-size: 1.35rem;
                 font-weight: 700;
                 margin-top: 2px;
                 line-height: 1.1;
                 color: var(--card-val);
-            }}
+            }
 
             /* SVG Canvas Wrapper */
-            .svg-wrapper {{ width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }}
-            #sankey_svg {{ width: 100%; height: auto; min-width: 850px; }}
-            .node rect {{ fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: var(--container-bg); stroke-width: 2px; cursor: pointer; }}
-            .node rect:hover {{ filter: brightness(1.15); }}
-            .node text {{ font-size: 11.5px; font-weight: 600; fill: var(--node-text); pointer-events: none; }}
-            .link {{ fill: none; stroke-opacity: 0.4; transition: stroke-opacity 0.2s, opacity 0.2s, stroke-width 0.2s; }}
-            .link:hover {{ stroke-opacity: 0.8 !important; }}
-            #tooltip {{ position: absolute; padding: 8px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; color: white; border-radius: 6px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 100; }}
+            .svg-wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            #sankey_svg { width: 100%; height: auto; min-width: 850px; }
+            .node rect { fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: var(--container-bg); stroke-width: 2px; cursor: pointer; }
+            .node rect:hover { filter: brightness(1.15); }
+            .node text { font-size: 11.5px; font-weight: 600; fill: var(--node-text); pointer-events: none; }
+            .link { fill: none; stroke-opacity: 0.4; transition: stroke-opacity 0.2s, opacity 0.2s, stroke-width 0.2s; }
+            .link:hover { stroke-opacity: 0.8 !important; }
+            #tooltip { position: absolute; padding: 8px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; color: white; border-radius: 6px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 100; }
             
             /* Unified Cohort HUD Detail Card (Positioned Below Chart) */
-            #cohort-hud {{ 
+            #cohort-hud { 
                 position: relative; 
                 background: var(--panel-bg); 
                 border: 1px solid var(--panel-border); 
@@ -502,18 +502,18 @@ if all_issues:
                 margin-top: 16px; 
                 animation: fadeIn 0.2s ease-in-out;
                 transition: background-color 0.3s ease, border-color 0.3s ease;
-            }}
+            }
 
-            @keyframes fadeIn {{
-                from {{ opacity: 0; transform: translateY(-4px); }}
-                to   {{ opacity: 1; transform: translateY(0); }}
-            }}
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(-4px); }
+                to   { opacity: 1; transform: translateY(0); }
+            }
 
-            #cohort-hud h4 {{ margin: 0 0 10px 0; color: #0284c7; border-bottom: 1px solid var(--panel-border); padding-bottom: 6px; font-size: 14px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }}
-            #cohort-hud ul {{ margin: 0; padding-left: 18px; color: var(--text-sub); }}
-            #cohort-hud ul li {{ margin-bottom: 3px; }}
-            .faded {{ opacity: 0.05 !important; }}
-            .highlighted-link {{ stroke-opacity: 0.85 !important; }}
+            #cohort-hud h4 { margin: 0 0 10px 0; color: #0284c7; border-bottom: 1px solid var(--panel-border); padding-bottom: 6px; font-size: 14px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }
+            #cohort-hud ul { margin: 0; padding-left: 18px; color: var(--text-sub); }
+            #cohort-hud ul li { margin-bottom: 3px; }
+            .faded { opacity: 0.05 !important; }
+            .highlighted-link { stroke-opacity: 0.85 !important; }
         </style>
     </head>
     <body>
@@ -529,7 +529,6 @@ if all_issues:
                             <span class="theme-option dark-opt">🌙 Dark</span>
                         </div>
                     </h2>
-                    <p>Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>.</p>
                     <p>Last Synchronized: <span id="local-timestamp">Calculating...</span></p>
                 </div>
 
@@ -548,15 +547,15 @@ if all_issues:
                         </div>
                         <div class="kpi-card">
                             <div class="card-title">Active / Pending</div>
-                            <div id="kpi-active" class="card-val" style="color: #0284c7;">0</div>
+                            <div id="kpi-active" class="card-val" style="color: #2ecc71;">0</div>
                         </div>
                         <div class="kpi-card">
                             <div class="card-title">Screened Rate</div>
-                            <div id="kpi-screened-rate" class="card-val" style="color: #10b981;">0.0%</div>
+                            <div id="kpi-screened-rate" class="card-val" style="color: #2ecc71;">0.0%</div>
                         </div>
                         <div class="kpi-card">
                             <div class="card-title">Rejection Rate</div>
-                            <div id="kpi-rejection-rate" class="card-val" style="color: #ef4444;">0.0%</div>
+                            <div id="kpi-rejection-rate" class="card-val" style="color: #e74c3c;">0.0%</div>
                         </div>
                     </div>
                 </div>
@@ -574,49 +573,49 @@ if all_issues:
 
         <script>
             // Theme Toggle Logic
-            function setTheme(theme) {{
+            function setTheme(theme) {
                 const body = document.body;
                 const switchEl = document.getElementById("theme-switch");
                 
-                if (theme === "light") {{
+                if (theme === "light") {
                     body.setAttribute("data-theme", "light");
                     switchEl.setAttribute("data-active", "light");
                     localStorage.setItem("theme", "light");
-                }} else {{
+                } else {
                     body.removeAttribute("data-theme");
                     switchEl.setAttribute("data-active", "dark");
                     localStorage.setItem("theme", "dark");
-                }}
-            }}
+                }
+            }
 
-            function toggleTheme() {{
+            function toggleTheme() {
                 const currentTheme = document.body.getAttribute("data-theme");
                 setTheme(currentTheme === "light" ? "dark" : "light");
-            }}
+            }
 
             // Check saved preference on load
-            (function() {{
+            (function() {
                 const savedTheme = localStorage.getItem("theme");
-                if (savedTheme === "light") {{
+                if (savedTheme === "light") {
                     setTheme("light");
-                }} else {{
+                } else {
                     setTheme("dark");
-                }}
-            }})();
+                }
+            })();
 
-            const graphData = {d3_data_json};
-            graphData.links.forEach(l => {{ l.originalWidth = l.width; }});
+            const graphData = ''' + d3_data_json + ''';
+            graphData.links.forEach(l => { l.originalWidth = l.width; });
             
             const svg = d3.select("#sankey_svg"), width = 1200, height = 650;
-            svg.on("click", function(event) {{ if (event.target.tagName === "svg") resetSankeyEffects(); }});
+            svg.on("click", function(event) { if (event.target.tagName === "svg") resetSankeyEffects(); });
             
             // Baseline metrics setup for global dashboard
-            const globalTotalApps = {total_applied};
-            const globalActive = {status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0)};
-            const globalScreened = {combined_screened};
-            const globalRejected = {status_counts.get('Applied > Rejected', 0) + status_counts.get('Screened > Rejected', 0)};
+            const globalTotalApps = ''' + str(total_applied) + ''';
+            const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0)) + ''';
+            const globalScreened = ''' + str(combined_screened) + ''';
+            const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + status_counts.get('Screened > Rejected', 0)) + ''';
 
-            function updateKPIPanel(name, color, total, active, screened, rejected) {{
+            function updateKPIPanel(name, color, total, active, screened, rejected) {
                 const badge = d3.select("#focus-badge");
                 badge.text(name)
                      .style("background-color", color + "25")
@@ -632,9 +631,9 @@ if all_issues:
 
                 d3.select("#kpi-screened-rate").text(screenRate + "%");
                 d3.select("#kpi-rejection-rate").text(rejRate + "%");
-            }}
+            }
 
-            function resetSankeyEffects() {{ 
+            function resetSankeyEffects() { 
                 linkElements.classed("faded", false).classed("highlighted-link", false).style("stroke-width", d => Math.max(1.5, d.originalWidth)); 
                 nodeElements.classed("faded", false); 
                 d3.select("#cohort-hud").style("display", "none"); 
@@ -642,31 +641,31 @@ if all_issues:
 
                 // Reset KPI Panel back to global totals
                 updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
-            }}
+            }
             
             const sankey = d3.sankey().nodeWidth(22).nodePadding(20).extent([[10, 10], [width - 180, height - 10]]);
             let graph = sankey(graphData);
             
             const totalCols = 4, colWidth = (width - 220) / (totalCols - 1);
-            graph.nodes.forEach(node => {{ node.x0 = node.column * colWidth; node.x1 = node.x0 + sankey.nodeWidth(); }});
+            graph.nodes.forEach(node => { node.x0 = node.column * colWidth; node.x1 = node.x0 + sankey.nodeWidth(); });
             sankey.update(graph);
             
             const tooltip = d3.select("#tooltip");
             const defs = svg.append("defs");
             
-            graph.links.forEach((link, i) => {{
-                const gradientId = `grad-${{i}}`;
+            graph.links.forEach((link, i) => {
+                const gradientId = `grad-${i}`;
                 const grad = defs.append("linearGradient").attr("id", gradientId).attr("gradientUnits", "userSpaceOnUse").attr("x1", link.source.x1).attr("x2", link.target.x0);
                 grad.append("stop").attr("offset", "0%").attr("stop-color", link.source.color);
                 grad.append("stop").attr("offset", "100%").attr("stop-color", link.target.color);
                 link.gradientId = gradientId;
-            }});
+            });
             
-            const linkElements = svg.append("g").attr("fill", "none").selectAll("path").data(graph.links).enter().append("path").attr("class", "link").attr("d", d3.sankeyLinkHorizontal()).attr("stroke", (d, i) => `url(#grad-${{i}})`).style("stroke-width", d => Math.max(1.5, d.width));
-            const nodeElements = svg.append("g").selectAll("g").data(graph.nodes).enter().append("g").attr("class", "node").attr("transform", d => `translate(${{d.x0}},${{d.y0}})`);
+            const linkElements = svg.append("g").attr("fill", "none").selectAll("path").data(graph.links).enter().append("path").attr("class", "link").attr("d", d3.sankeyLinkHorizontal()).attr("stroke", (d, i) => `url(#grad-${i})`).style("stroke-width", d => Math.max(1.5, d.width));
+            const nodeElements = svg.append("g").selectAll("g").data(graph.nodes).enter().append("g").attr("class", "node").attr("transform", d => `translate(${d.x0},${d.y0})`);
             
             let isHighlighted = false;
-            nodeElements.append("rect").attr("height", d => Math.max(4, d.y1 - d.y0)).attr("width", d => d.x1 - d.x0).attr("rx", 5).attr("ry", 5).style("fill", d => d.color).on("click", function(event, clickedNode) {{
+            nodeElements.append("rect").attr("height", d => Math.max(4, d.y1 - d.y0)).attr("width", d => d.x1 - d.x0).attr("rx", 5).attr("ry", 5).style("fill", d => d.color).on("click", function(event, clickedNode) {
                 event.stopPropagation();
                 const activeNodes = new Set(), activeLinks = new Set();
                 activeNodes.add(clickedNode.index);
@@ -674,170 +673,177 @@ if all_issues:
                 let focusName = clickedNode.name.split(" (")[0];
 
                 // CASE 1: Clicked a Sourcing Channel (Column 0)
-                if (clickedNode.column === 0) {{
+                if (clickedNode.column === 0) {
                     let platformFilter = focusName;
-                    let downstreamStatuses = {{}};
+                    let downstreamStatuses = {};
 
                     // Trace downstream paths to harvest exact application counts by status
-                    linkElements.each(function(l) {{
+                    linkElements.each(function(l) {
                         let pCount = (l.origins && l.origins[platformFilter]) || 0;
-                        if (pCount > 0) {{
+                        if (pCount > 0) {
                             activeLinks.add(l);
                             activeNodes.add(l.source.index);
                             activeNodes.add(l.target.index);
 
                             let statusName = l.target.name.split(" (")[0];
                             
-                            if (l.target.column === 2 && statusName !== "Screened") {{
+                            if (l.target.column === 2 && statusName !== "Screened") {
                                 downstreamStatuses[statusName] = (downstreamStatuses[statusName] || 0) + pCount;
-                            }} else if (l.target.column === 3) {{
+                            } else if (l.target.column === 3) {
                                 downstreamStatuses[statusName] = (downstreamStatuses[statusName] || 0) + pCount;
-                            }}
-                        }}
-                    }});
+                            }
+                        }
+                    });
 
                     let totalPlatformApps = Object.values(downstreamStatuses).reduce((a, b) => a + b, 0);
 
-                    if (totalPlatformApps > 0) {{
+                    if (totalPlatformApps > 0) {
+                        let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0);
+                        let noResponseCount = downstreamStatuses["Applied > No Response"] || 0;
+                        let rejectedCount = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0);
+
+                        let pendingPctRaw = totalPlatformApps > 0 ? (pendingCount / totalPlatformApps) * 100 : 0;
+                        let noResponsePctRaw = totalPlatformApps > 0 ? (noResponseCount / totalPlatformApps) * 100 : 0;
+                        let rejectedPctRaw = totalPlatformApps > 0 ? (rejectedCount / totalPlatformApps) * 100 : 0;
+
+                        // Normalize raw percentages to guarantee exact 100% fill and eliminate rendering sub-pixel rounding gaps
+                        let totalRawSum = pendingPctRaw + noResponsePctRaw + rejectedPctRaw;
+                        if (totalRawSum > 0 && totalRawSum !== 100) {
+                            pendingPctRaw = (pendingPctRaw / totalRawSum) * 100;
+                            noResponsePctRaw = (noResponsePctRaw / totalRawSum) * 100;
+                            rejectedPctRaw = (rejectedPctRaw / totalRawSum) * 100;
+                        }
+
+                        let pendingPctText = pendingPctRaw.toFixed(1);
+                        let noResponsePctText = noResponsePctRaw.toFixed(1);
+                        let rejectedPctText = rejectedPctRaw.toFixed(1);
+
+                        // Update top 2x2 KPI panel dynamically
                         let screenedCount = Object.keys(downstreamStatuses)
                             .filter(st => st.startsWith("Screened"))
                             .reduce((sum, st) => sum + downstreamStatuses[st], 0);
 
-                        let pending = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0);
-                        let noResponse = downstreamStatuses["Applied > No Response"] || 0;
-                        let rejected = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0);
+                        updateKPIPanel(platformFilter, clickedNode.color, totalPlatformApps, pendingCount, screenedCount, rejectedCount);
 
-                        // Update top 2x2 KPI panel dynamically
-                        updateKPIPanel(platformFilter, clickedNode.color, totalPlatformApps, pending, screenedCount, rejected);
+                        // Build segments dynamically (using normalized widths to fill 100% width precisely)
+                        let barSegmentsHtml = "";
+                        let labelsHtml = "";
+                        let currentOffset = 0;
 
-                        let pctScreened = Math.round((screenedCount / totalPlatformApps) * 100);
-                        let pctNoResp = Math.round((noResponse / totalPlatformApps) * 100);
-                        let pctRej = Math.round((rejected / totalPlatformApps) * 100);
-                        let pctPending = Math.max(0, 100 - (pctScreened + pctNoResp + pctRej));
-
-                        let rawComposition = [
-                            {{ key: 'pending', label: 'Pending', count: pending, pct: pctPending, color: '#0284c7' }},
-                            {{ key: 'noResp',  label: 'No Resp', count: noResponse, pct: pctNoResp, color: '#d97706' }},
-                            {{ key: 'rejected', label: 'Rej',     count: rejected, pct: pctRej, color: '#ef4444' }},
-                            {{ key: 'screen',   label: 'Screen',  count: screenedCount, pct: pctScreened, color: '#10b981' }}
+                        const segmentsData = [
+                            { name: "Pending", count: pendingCount, rawPct: pendingPctRaw, textPct: pendingPctText, color: "#2ecc71" },
+                            { name: "No Response", count: noResponseCount, rawPct: noResponsePctRaw, textPct: noResponsePctText, color: "#f1c40f" },
+                            { name: "Rejected", count: rejectedCount, rawPct: rejectedPctRaw, textPct: rejectedPctText, color: "#e74c3c" }
                         ];
 
-                        let activeComposition = rawComposition.filter(d => d.count > 0 || d.pct > 0);
-
-                        let barSegmentsHtml = activeComposition.map(d => 
-                            `<div style="width: ${{d.pct}}%; background-color: ${{d.color}}; height: 100%; transition: width 0.3s ease;" title="${{d.label}}: ${{d.pct}}%"></div>`
-                        ).join('');
-
-                        let legendItemsHtml = activeComposition.map(d => 
-                            `<span><span style="color:${{d.color}};">■</span> ${{d.label}} ${{d.pct}}%</span>`
-                        ).join('');
+                        segmentsData.forEach(seg => {
+                            if (seg.count > 0) {
+                                barSegmentsHtml += `<div style="width: ${seg.rawPct}%; background: ${seg.color};" title="${seg.name}: ${seg.count} (${seg.textPct}%)"></div>`;
+                                labelsHtml += `<span style="position: absolute; left: ${currentOffset}%; color: ${seg.color};">${seg.name} ${seg.textPct}%</span>`;
+                            }
+                            currentOffset += seg.rawPct;
+                        });
 
                         let hudHtml = `
-                            <h4>${{platformFilter}} Performance Cohort</h4>
-                            <div style="margin: 6px 0 12px 0;">
-                                <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--panel-label); margin-bottom: 4px;">Funnel Composition</div>
-                                <div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(0,0,0,0.15);">
-                                    ${{barSegmentsHtml}}
+                            <h4>${platformFilter} Performance Cohort</h4>
+                            <div style="margin-bottom: 10px;">
+                                <strong style="font-size: 11px; text-transform: uppercase; color: var(--panel-label);">Funnel Composition</strong>
+                                <div style="display: flex; height: 12px; width: 100%; background: var(--card-border); border-radius: 6px; overflow: hidden; margin-top: 6px;">
+                                    ${barSegmentsHtml}
                                 </div>
-                                <div style="display: flex; gap: 10px; flex-wrap: wrap; font-size: 10px; font-weight: 600; color: var(--text-sub); margin-top: 6px;">
-                                    ${{legendItemsHtml}}
+                                <div style="position: relative; height: 18px; font-size: 10.5px; margin-top: 4px; font-family: 'Fira Code', monospace; white-space: nowrap;">
+                                    ${labelsHtml}
                                 </div>
                             </div>
-
-                            <div style="border-top: 1px solid var(--panel-border); padding-top: 8px;">
-                                <strong style="color: var(--text-main);">Detailed Breakdown:</strong>
+                            <div style="border-top: 1px solid var(--panel-border); margin-top: 8px; padding-top: 8px;">
+                                <strong style="color: var(--text-main);">Terminal Status Breakdown:</strong>
                                 <ul style="margin-top: 4px; padding-left: 16px;">
+                                    ` + (pendingCount > 0 ? `<li><strong>Pending:</strong> ${pendingCount} (${pendingPctText}%)</li>` : '') + `
+                                    ` + (noResponseCount > 0 ? `<li><strong>No Response:</strong> ${noResponseCount} (${noResponsePctText}%)</li>` : '') + `
+                                    ` + (rejectedCount > 0 ? `<li><strong>Rejected:</strong> ${rejectedCount} (${rejectedPctText}%)</li>` : '') + `
+                                </ul>
+                            </div>
                         `;
-
-                        Object.keys(downstreamStatuses)
-                            .sort((a, b) => downstreamStatuses[b] - downstreamStatuses[a])
-                            .forEach(s => {{
-                                let count = downstreamStatuses[s];
-                                let pct = ((count / totalPlatformApps) * 100).toFixed(1);
-                                hudHtml += `<li><strong>${{s}}:</strong> ${{count}} (${{pct}}%)</li>`;
-                            }});
-
-                        hudHtml += `</ul></div>`;
                         d3.select("#cohort-hud").html(hudHtml).style("display", "block");
-                    }}
+                    }
 
-                }} else if (clickedNode.column === 1) {{
-                    linkElements.each(function(l) {{
+                } else if (clickedNode.column === 1) {
+                    linkElements.each(function(l) {
                         activeLinks.add(l);
                         activeNodes.add(l.source.index);
                         activeNodes.add(l.target.index);
-                    }});
+                    });
                     d3.select("#cohort-hud").style("display", "none");
                     updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
 
-                }} else {{
-                    let exactSlices = {{}};
+                } else {
+                    let exactSlices = {};
                     let targetLinksToEvaluate = clickedNode.targetLinks || [];
 
-                    targetLinksToEvaluate.forEach(l => {{
-                        if (l.origins) {{
-                            Object.keys(l.origins).forEach(p => {{
+                    targetLinksToEvaluate.forEach(l => {
+                        if (l.origins) {
+                            Object.keys(l.origins).forEach(p => {
                                 exactSlices[p] = (exactSlices[p] || 0) + l.origins[p];
-                            }});
-                        }}
-                    }});
+                            });
+                        }
+                    });
 
-                    linkElements.each(function(l) {{
+                    linkElements.each(function(l) {
                         let isRelevant = false;
-                        if (l.origins) {{
-                            for (let p in exactSlices) {{
-                                if (l.origins[p] > 0) {{
-                                    if (l.source.column === 0 && l.target.column === 1) {{
+                        if (l.origins) {
+                            for (let p in exactSlices) {
+                                if (l.origins[p] > 0) {
+                                    if (l.source.column === 0 && l.target.column === 1) {
                                         isRelevant = true;
-                                    }} else if (l.source.column === 1 && l.target.column === 2) {{
-                                        if (clickedNode.column === 2 && l.target.index === clickedNode.index) {{
+                                    } else if (l.source.column === 1 && l.target.column === 2) {
+                                        if (clickedNode.column === 2 && l.target.index === clickedNode.index) {
                                             isRelevant = true;
-                                        }} else if (clickedNode.column === 3 && l.target.name.startsWith("Screened")) {{
+                                        } else if (clickedNode.column === 3 && l.target.name.startsWith("Screened")) {
                                             isRelevant = true;
-                                        }}
-                                    }} else if (l.source.column === 2 && l.target.column === 3 && l.target.index === clickedNode.index) {{
+                                        }
+                                    } else if (l.source.column === 2 && l.target.column === 3 && l.target.index === clickedNode.index) {
                                         isRelevant = true;
-                                    }}
-                                }}
-                            }}
-                        }}
-                        if (isRelevant) {{
+                                    }
+                                }
+                            }
+                        }
+                        if (isRelevant) {
                             activeLinks.add(l);
                             activeNodes.add(l.source.index);
                             activeNodes.add(l.target.index);
-                        }}
-                    }});
+                        }
+                    });
 
                     let totalCohortApps = Object.values(exactSlices).reduce((a, b) => a + b, 0);
                     updateKPIPanel(focusName, clickedNode.color, totalCohortApps, 0, focusName.startsWith("Screened") ? totalCohortApps : 0, focusName.includes("Rejected") ? totalCohortApps : 0);
 
-                    let hudHtml = `<h4>${{focusName}} Source Breakdown</h4><ul>`;
+                    let hudHtml = `<h4>${focusName} Source Breakdown</h4><ul>`;
                     let platformKeys = Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]);
-                    if (platformKeys.length === 0) {{
+                    if (platformKeys.length === 0) {
                         hudHtml += `<li>No source cohorts found</li>`;
-                    }} else {{
-                        platformKeys.forEach(p => {{
-                            hudHtml += `<li><strong>${{p}}</strong>: ${{exactSlices[p]}} application(s)</li>`;
-                        }});
-                    }}
+                    } else {
+                        platformKeys.forEach(p => {
+                            hudHtml += `<li><strong>${p}</strong>: ${exactSlices[p]} application(s)</li>`;
+                        });
+                    }
                     hudHtml += `</ul>`;
                     d3.select("#cohort-hud").html(hudHtml).style("display", "block");
-                }}
+                }
 
                 linkElements.classed("faded", l => !activeLinks.has(l)).classed("highlighted-link", l => activeLinks.has(l));
                 nodeElements.classed("faded", n => !activeNodes.has(n.index));
                 isHighlighted = true;
-            }});
+            });
             
             nodeElements.append("text").attr("x", d => d.x1 - d.x0 + 12).attr("y", d => (d.y1 - d.y0) / 2).attr("dy", "0.35em").text(d => d.name);
-            document.getElementById("local-timestamp").innerText = new Date("{current_utc_iso}").toLocaleString();
+            document.getElementById("local-timestamp").innerText = new Date("''' + current_utc_iso + '''").toLocaleString();
             
             // Initialize global KPI state on load
             updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
         </script>
     </body>
     </html>
-    """
+    '''
 
     # ==========================================
     # 7. ABSOLUTE DIRECTORY FILE WRITE
