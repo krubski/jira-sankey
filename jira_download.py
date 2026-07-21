@@ -125,7 +125,7 @@ if all_issues:
 
     # Target functional stages matching visualization template requirements
     valid_statuses = [
-        'Applied', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
+        'Applied', 'Applied > Pending', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
         'Screened', 'Screened > Pending', 'Screened > No Response', 'Screened > Rejected'
     ]
     
@@ -144,6 +144,9 @@ if all_issues:
     source_counts = df_filtered['Source'].value_counts().to_dict()
     status_counts = df_filtered['Status'].value_counts().to_dict()
 
+    # Consolidate 'Applied' and 'Applied > Pending' into one count for the node
+    applied_pending_count = status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0)
+
     # Consolidate deep stages back into their respective high-level categories
     combined_screened = sum(status_counts.get(st, 0) for st in ['Screened', 'Screened > Pending', 'Screened > No Response', 'Screened > Rejected'])
 
@@ -160,10 +163,10 @@ if all_issues:
         {"id_key": "Simplify",               "type": "source", "name": f"Simplify ({source_counts.get('Simplify', 0)})",                   "column": 0, "color": "#3bc4d7", "count": source_counts.get('Simplify', 0)},
         
         # Column 1: Master Central Aggregation node
-        {"id_key": "TotalApplied",           "type": "root",   "name": f"Applied ({total_applied})",                                       "column": 1, "color": "#BDBDBD", "count": total_applied},
+        {"id_key": "TotalApplied",           "type": "root",   "name": f"Applied ({total_applied})",                                       "column": 1, "color": "#64748b", "count": total_applied},
         
         # Column 2: Pipeline Core Progress Outcomes
-        {"id_key": "Applied",                   "type": "status", "name": f"Applied > Pending ({status_counts.get('Applied', 0)})",                     "column": 2, "color": "#2ecc71", "count": status_counts.get('Applied', 0)},
+        {"id_key": "Applied > Pending",         "type": "status", "name": f"Applied > Pending ({applied_pending_count})",                       "column": 2, "color": "#2ecc71", "count": applied_pending_count},
         {"id_key": "Applied > No Response",     "type": "status", "name": f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})",   "column": 2, "color": "#f1c40f", "count": status_counts.get('Applied > No Response', 0)},
         {"id_key": "Applied > Position on Hold", "type": "status", "name": f"Applied > Position on Hold ({status_counts.get('Applied > Position on Hold', 0)})", "column": 2, "color": "#7f8c8d", "count": status_counts.get('Applied > Position on Hold', 0)},
         {"id_key": "Applied > Rejected",        "type": "status", "name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",        "column": 2, "color": "#e74c3c", "count": status_counts.get('Applied > Rejected', 0)},
@@ -185,7 +188,8 @@ if all_issues:
     shared_screened_label = f"Screened ({combined_screened})"
     
     status_to_node = {
-        'Applied': f"Applied > Pending ({status_counts.get('Applied', 0)})",
+        'Applied': f"Applied > Pending ({applied_pending_count})",
+        'Applied > Pending': f"Applied > Pending ({applied_pending_count})",
         'Applied > No Response': f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})",
         'Applied > Position on Hold': f"Applied > Position on Hold ({status_counts.get('Applied > Position on Hold', 0)})",
         'Applied > Rejected': f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",
@@ -234,21 +238,24 @@ if all_issues:
             links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src})
             
         else:
-            if status in status_to_node and status in active_keys:
-                dest_node = status_to_node[status]
+            # Direct single-link mapping from Root to Column 2 target
+            dest_node = status_to_node.get(status)
+            if dest_node and dest_node in node_name_to_idx:
                 links_raw.append({"source": root_node_name, "target": dest_node, "origin": src})
 
-    # Group matching linkages and map them explicitly to numeric node indices
+    # Group matching linkages into SINGLE links per path, but keep origin breakdown metadata for the HUD
     links_config = []
     if links_raw:
-        links_df = pd.DataFrame(links_raw).groupby(['source', 'target', 'origin']).size().reset_index(name='value')
-        for _, r in links_df.iterrows():
-            if r['source'] in node_name_to_idx and r['target'] in node_name_to_idx:
+        links_df = pd.DataFrame(links_raw)
+        grouped = links_df.groupby(['source', 'target'])
+        for (src_name, tgt_name), group in grouped:
+            if src_name in node_name_to_idx and tgt_name in node_name_to_idx:
+                origin_counts = group['origin'].value_counts().to_dict()
                 links_config.append({
-                    "source": node_name_to_idx[r['source']],
-                    "target": node_name_to_idx[r['target']],
-                    "value": int(r['value']),
-                    "origin_source": r['origin']
+                    "source": node_name_to_idx[src_name],
+                    "target": node_name_to_idx[tgt_name],
+                    "value": len(group),
+                    "origins": origin_counts
                 })
 
     # Clean temporary calculation fields to form raw compliance D3 payload structures
@@ -263,66 +270,381 @@ if all_issues:
     # ==========================================
     # 6. D3.JS RUNTIME HTML TEMPLATE GENERATION
     # ==========================================
-    print("\n5. Compiling HTML template data...")
+    print("\n5. Compiling HTML template data with Unified Light/Dark Theme variables...")
     html_template = f"""<!DOCTYPE html>
     <html>
     <head>
         <title>Jira Application Source Pipeline (D3.js)</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!-- Google Fonts: Space Grotesk (Title & KPI Numerics) + Fira Code (Monospace Labels) -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
         <!-- Inline Data URI SVG Favicon pulling from the 🥇 Unicode point -->
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>{favicon_emoji}</text></svg>">
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
         <style>
-            body {{ font-family: Arial, sans-serif; background-color: #f4f6f9; padding: 10px; margin: 0; display: flex; flex-direction: column; align-items: center; }}
-            .container {{ width: 100%; max-width: 1250px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 15px; box-sizing: border-box; position: relative; }}
-            .header {{ text-align: left; margin-bottom: 25px; }}
-            .header h2 {{ color: #2c3e50; margin: 0 0 5px 0; font-size: 1.5rem; }}
-            .header p {{ color: #7f8c8d; margin: 0; font-size: 13px; }}
+            /* Theming Variables (Default: Dark Mode) */
+            :root {{
+                --bg-body: #0f172a;
+                --container-bg: #1e293b;
+                --container-border: #334155;
+                --text-main: #f8fafc;
+                --text-sub: #94a3b8;
+                --timestamp-bg: #0f172a;
+                --timestamp-border: #334155;
+                --timestamp-color: #38bdf8;
+                
+                /* Unified Dark HUD & Card Theme */
+                --panel-bg: #111827;
+                --panel-border: #374151;
+                --panel-label: #9ca3af;
+                --card-bg: #1f2937;
+                --card-border: #374151;
+                --card-title: #9ca3af;
+                --card-val: #f9fafb;
+                
+                --node-text: #cbd5e1;
+                --toggle-track-bg: #334155;
+                --toggle-knob-bg: #1e293b;
+                --toggle-text-inactive: #94a3b8;
+                --toggle-text-active: #f8fafc;
+                --toggle-border: #475569;
+            }}
+
+            /* Light Mode Theme Overrides */
+            [data-theme="light"] {{
+                --bg-body: #f8fafc;
+                --container-bg: #ffffff;
+                --container-border: #e2e8f0;
+                --text-main: #0f172a;
+                --text-sub: #64748b;
+                --timestamp-bg: #f1f5f9;
+                --timestamp-border: #e2e8f0;
+                --timestamp-color: #0284c7;
+                
+                /* Unified Light HUD & Card Theme */
+                --panel-bg: #f8fafc;
+                --panel-border: #cbd5e1;
+                --panel-label: #475569;
+                --card-bg: #ffffff;
+                --card-border: #cbd5e1;
+                --card-title: #475569;
+                --card-val: #0f172a;
+                
+                --node-text: #334155;
+                --toggle-track-bg: #e2e8f0;
+                --toggle-knob-bg: #ffffff;
+                --toggle-text-inactive: #64748b;
+                --toggle-text-active: #0f172a;
+                --toggle-border: #cbd5e1;
+            }}
+
+            body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 15px; margin: 0; display: flex; flex-direction: column; align-items: center; transition: background-color 0.3s ease; }}
+            .container {{ width: 100%; max-width: 1280px; background: var(--container-bg); border: 1px solid var(--container-border); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); padding: 20px; box-sizing: border-box; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }}
+            
+            /* Header Styling */
+            .header-layout {{ display: flex; flex-direction: column; gap: 20px; margin-bottom: 25px; position: relative; }}
+            @media (min-width: 850px) {{
+                .header-layout {{ display: grid; grid-template-columns: 1fr 340px; align-items: start; }}
+            }}
+
+            .title-area h2 {{ 
+                font-family: 'Space Grotesk', sans-serif;
+                color: var(--text-main); 
+                margin: 0 0 6px 0; 
+                font-size: 1.85rem; 
+                font-weight: 700;
+                letter-spacing: -0.03em;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                flex-wrap: wrap;
+            }}
+            .title-area p {{ 
+                color: var(--text-sub); 
+                margin: 0 0 8px 0; 
+                font-size: 13.5px; 
+                line-height: 1.5;
+            }}
+            .title-area #local-timestamp {{
+                font-family: 'Fira Code', monospace;
+                font-size: 11px;
+                background: var(--timestamp-bg);
+                border: 1px solid var(--timestamp-border);
+                padding: 3px 10px;
+                border-radius: 12px;
+                color: var(--timestamp-color);
+                font-weight: 500;
+            }}
+
+            /* Modern Segmented Toggle Switch to the right of 'pipeline' in header */
+            .theme-switch {{
+                display: inline-flex;
+                align-items: center;
+                background: var(--toggle-track-bg);
+                border: 1px solid var(--toggle-border);
+                border-radius: 20px;
+                padding: 2px;
+                cursor: pointer;
+                user-select: none;
+                vertical-align: middle;
+                margin-left: 8px;
+                box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+                transition: background-color 0.3s ease, border-color 0.3s ease;
+            }}
+            .theme-option {{
+                font-family: 'Fira Code', monospace;
+                font-size: 11px;
+                font-weight: 600;
+                padding: 4px 10px;
+                border-radius: 16px;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                color: var(--toggle-text-inactive);
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            }}
+            .theme-switch[data-active="light"] .light-opt,
+            .theme-switch[data-active="dark"] .dark-opt {{
+                background: var(--toggle-knob-bg);
+                color: var(--toggle-text-active);
+                box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+            }}
+
+            /* Unified KPI Panel Styling */
+            .kpi-panel {{
+                background: var(--panel-bg);
+                border: 1px solid var(--panel-border);
+                border-radius: 12px;
+                padding: 14px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                transition: background-color 0.3s ease, border-color 0.3s ease;
+            }}
+            .kpi-badge-row {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 12px;
+            }}
+            .kpi-label {{
+                font-family: 'Fira Code', monospace;
+                font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: 0.8px;
+                color: var(--panel-label);
+                font-weight: 700;
+            }}
+            .kpi-focus-badge {{
+                font-family: 'Space Grotesk', sans-serif;
+                font-size: 11px;
+                font-weight: 700;
+                padding: 3px 10px;
+                border-radius: 20px;
+                transition: all 0.3s ease;
+            }}
+
+            /* 2x2 Stat Grid */
+            .kpi-grid {{
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }}
+            .kpi-card {{
+                background: var(--card-bg);
+                border: 1px solid var(--card-border);
+                border-radius: 8px;
+                padding: 8px 10px;
+                transition: background-color 0.3s ease, border-color 0.3s ease;
+            }}
+            .kpi-card .card-title {{
+                font-family: 'Fira Code', monospace;
+                font-size: 9.5px;
+                text-transform: uppercase;
+                color: var(--card-title);
+                font-weight: 600;
+                letter-spacing: 0.5px;
+            }}
+            .kpi-card .card-val {{
+                font-family: 'Space Grotesk', sans-serif;
+                font-size: 1.35rem;
+                font-weight: 700;
+                margin-top: 2px;
+                line-height: 1.1;
+                color: var(--card-val);
+            }}
+
+            /* SVG Canvas Wrapper */
             .svg-wrapper {{ width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }}
             #sankey_svg {{ width: 100%; height: auto; min-width: 850px; }}
-            .node rect {{ fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: #ffffff; stroke-width: 2px; cursor: pointer; }}
-            .node rect:hover {{ filter: brightness(1.05); }}
-            .node text {{ font-size: 11px; font-weight: bold; fill: #2c3e50; pointer-events: none; }}
-            .link {{ fill: none; stroke-opacity: 0.28; transition: stroke-opacity 0.2s, opacity 0.2s, stroke-width 0.2s; }}
-            .link:hover {{ stroke-opacity: 0.6 !important; }}
-            #tooltip {{ position: absolute; padding: 8px 12px; background: rgba(44, 62, 80, 0.95); color: white; border-radius: 4px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 100; }}
-            #cohort-hud {{ position: relative; top: 0; right: 0; background: #2c3e50; color: white; padding: 15px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); font-size: 12px; display: none; width: 100%; box-sizing: border-box; line-height: 1.5; margin-bottom: 15px; }}
-            #cohort-hud h4 {{ margin: 0 0 8px 0; color: #2ecc71; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px; font-size: 13px; }}
-            #cohort-hud ul {{ margin: 0; padding-left: 18px; }}
-            @media (min-width: 768px) {{ body {{ padding: 30px; }} .container {{ padding: 25px; }} .header h2 {{ font-size: 1.8rem; }} #cohort-hud {{ position: absolute; top: 25px; right: 25px; width: 280px; margin-bottom: 0; }} .node text {{ font-size: 12px; }} }}
-            .faded {{ opacity: 0.04 !important; }}
-            .highlighted-link {{ stroke-opacity: 0.8 !important; }}
+            .node rect {{ fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: var(--container-bg); stroke-width: 2px; cursor: pointer; }}
+            .node rect:hover {{ filter: brightness(1.15); }}
+            .node text {{ font-size: 11.5px; font-weight: 600; fill: var(--node-text); pointer-events: none; }}
+            .link {{ fill: none; stroke-opacity: 0.4; transition: stroke-opacity 0.2s, opacity 0.2s, stroke-width 0.2s; }}
+            .link:hover {{ stroke-opacity: 0.8 !important; }}
+            #tooltip {{ position: absolute; padding: 8px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; color: white; border-radius: 6px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 100; }}
+            
+            /* Unified Cohort HUD Detail Card (Positioned Below Chart) */
+            #cohort-hud {{ 
+                position: relative; 
+                background: var(--panel-bg); 
+                border: 1px solid var(--panel-border); 
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+                color: var(--text-main); 
+                padding: 18px; 
+                border-radius: 12px; 
+                font-size: 13px; 
+                display: none; 
+                width: 100%; 
+                box-sizing: border-box; 
+                line-height: 1.5; 
+                margin-top: 16px; 
+                animation: fadeIn 0.2s ease-in-out;
+                transition: background-color 0.3s ease, border-color 0.3s ease;
+            }}
+
+            @keyframes fadeIn {{
+                from {{ opacity: 0; transform: translateY(-4px); }}
+                to   {{ opacity: 1; transform: translateY(0); }}
+            }}
+
+            #cohort-hud h4 {{ margin: 0 0 10px 0; color: #0284c7; border-bottom: 1px solid var(--panel-border); padding-bottom: 6px; font-size: 14px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; }}
+            #cohort-hud ul {{ margin: 0; padding-left: 18px; color: var(--text-sub); }}
+            #cohort-hud ul li {{ margin-bottom: 3px; }}
+            .faded {{ opacity: 0.05 !important; }}
+            .highlighted-link {{ stroke-opacity: 0.85 !important; }}
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="header">
-                <h2>Jira Application Source Pipeline</h2>
-                <p>Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>.</p>
-                <p>Last Synchronized: <span id="local-timestamp">Calculating...</span></p>
+            <div class="header-layout">
+                <!-- Title & Meta Header -->
+                <div class="title-area">
+                    <h2>
+                        Jira Application Source Pipeline
+                        <!-- Segmented Theme Toggle Switch to the right of 'pipeline' -->
+                        <div class="theme-switch" id="theme-switch" data-active="dark" onclick="toggleTheme()">
+                            <span class="theme-option light-opt">☀️ Light</span>
+                            <span class="theme-option dark-opt">🌙 Dark</span>
+                        </div>
+                    </h2>
+                    <p>Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>.</p>
+                    <p>Last Synchronized: <span id="local-timestamp">Calculating...</span></p>
+                </div>
+
+                <!-- Dynamic KPI Summary Card Panel -->
+                <div class="kpi-panel">
+                    <div class="kpi-badge-row">
+                        <span class="kpi-label">Selected Focus</span>
+                        <span id="focus-badge" class="kpi-focus-badge" style="background-color: rgba(2, 132, 199, 0.15); color: #0284c7; border: 1px solid rgba(2, 132, 199, 0.4); box-shadow: 0 0 10px rgba(2, 132, 199, 0.15);">
+                            Global Pipeline
+                        </span>
+                    </div>
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="card-title">Total Apps</div>
+                            <div id="kpi-total" class="card-val">0</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="card-title">Active / Pending</div>
+                            <div id="kpi-active" class="card-val" style="color: #0284c7;">0</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="card-title">Screened Rate</div>
+                            <div id="kpi-screened-rate" class="card-val" style="color: #10b981;">0.0%</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="card-title">Rejection Rate</div>
+                            <div id="kpi-rejection-rate" class="card-val" style="color: #ef4444;">0.0%</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div id="cohort-hud"></div>
+
+            <!-- SVG Chart Wrapper -->
             <div class="svg-wrapper">
-                <svg id="sankey_svg" viewBox="0 0 1200 550" preserveAspectRatio="xMinYMin meet"></svg>
+                <svg id="sankey_svg" viewBox="0 0 1200 650" preserveAspectRatio="xMinYMin meet"></svg>
             </div>
+
+            <!-- Cohort HUD Detail Card (Rendered BELOW the Chart) -->
+            <div id="cohort-hud"></div>
         </div>
         <div id="tooltip"></div>
+
         <script>
+            // Theme Toggle Logic
+            function setTheme(theme) {{
+                const body = document.body;
+                const switchEl = document.getElementById("theme-switch");
+                
+                if (theme === "light") {{
+                    body.setAttribute("data-theme", "light");
+                    switchEl.setAttribute("data-active", "light");
+                    localStorage.setItem("theme", "light");
+                }} else {{
+                    body.removeAttribute("data-theme");
+                    switchEl.setAttribute("data-active", "dark");
+                    localStorage.setItem("theme", "dark");
+                }}
+            }}
+
+            function toggleTheme() {{
+                const currentTheme = document.body.getAttribute("data-theme");
+                setTheme(currentTheme === "light" ? "dark" : "light");
+            }}
+
+            // Check saved preference on load
+            (function() {{
+                const savedTheme = localStorage.getItem("theme");
+                if (savedTheme === "light") {{
+                    setTheme("light");
+                }} else {{
+                    setTheme("dark");
+                }}
+            }})();
+
             const graphData = {d3_data_json};
             graphData.links.forEach(l => {{ l.originalWidth = l.width; }});
             
-            const svg = d3.select("#sankey_svg"), width = 1200, height = 550;
+            const svg = d3.select("#sankey_svg"), width = 1200, height = 650;
             svg.on("click", function(event) {{ if (event.target.tagName === "svg") resetSankeyEffects(); }});
             
+            // Baseline metrics setup for global dashboard
+            const globalTotalApps = {total_applied};
+            const globalActive = {status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0)};
+            const globalScreened = {combined_screened};
+            const globalRejected = {status_counts.get('Applied > Rejected', 0) + status_counts.get('Screened > Rejected', 0)};
+
+            function updateKPIPanel(name, color, total, active, screened, rejected) {{
+                const badge = d3.select("#focus-badge");
+                badge.text(name)
+                     .style("background-color", color + "25")
+                     .style("color", color)
+                     .style("border", "1px solid " + color + "60")
+                     .style("box-shadow", "0 0 10px " + color + "30");
+
+                d3.select("#kpi-total").text(total);
+                d3.select("#kpi-active").text(active);
+                
+                const screenRate = total > 0 ? ((screened / total) * 100).toFixed(1) : "0.0";
+                const rejRate = total > 0 ? ((rejected / total) * 100).toFixed(1) : "0.0";
+
+                d3.select("#kpi-screened-rate").text(screenRate + "%");
+                d3.select("#kpi-rejection-rate").text(rejRate + "%");
+            }}
+
             function resetSankeyEffects() {{ 
                 linkElements.classed("faded", false).classed("highlighted-link", false).style("stroke-width", d => Math.max(1.5, d.originalWidth)); 
                 nodeElements.classed("faded", false); 
                 d3.select("#cohort-hud").style("display", "none"); 
                 isHighlighted = false; 
+
+                // Reset KPI Panel back to global totals
+                updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
             }}
             
-            const sankey = d3.sankey().nodeWidth(22).nodePadding(32).extent([[10, 10], [width - 180, height - 10]]);
+            const sankey = d3.sankey().nodeWidth(22).nodePadding(20).extent([[10, 10], [width - 180, height - 10]]);
             let graph = sankey(graphData);
             
             const totalCols = 4, colWidth = (width - 220) / (totalCols - 1);
@@ -340,71 +662,178 @@ if all_issues:
                 link.gradientId = gradientId;
             }});
             
-            const linkElements = svg.append("g").attr("fill", "none").selectAll("path").data(graph.links).enter().append("path").attr("class", "link").attr("d", d3.sankeyLinkHorizontal()).attr("stroke", (d, i) => `url(#grad-${{i}})`).style("stroke-width", d => Math.max(1.5, d.width)).attr("data-origin-source", d => d.origin_source);
+            const linkElements = svg.append("g").attr("fill", "none").selectAll("path").data(graph.links).enter().append("path").attr("class", "link").attr("d", d3.sankeyLinkHorizontal()).attr("stroke", (d, i) => `url(#grad-${{i}})`).style("stroke-width", d => Math.max(1.5, d.width));
             const nodeElements = svg.append("g").selectAll("g").data(graph.nodes).enter().append("g").attr("class", "node").attr("transform", d => `translate(${{d.x0}},${{d.y0}})`);
             
             let isHighlighted = false;
             nodeElements.append("rect").attr("height", d => Math.max(4, d.y1 - d.y0)).attr("width", d => d.x1 - d.x0).attr("rx", 5).attr("ry", 5).style("fill", d => d.color).on("click", function(event, clickedNode) {{
                 event.stopPropagation();
-                const activeNodes = new Set(), activeLinks = new Set(); activeNodes.add(clickedNode.index);
-                graph.links.forEach(l => l.currentScaledValue = undefined);
-                
+                const activeNodes = new Set(), activeLinks = new Set();
+                activeNodes.add(clickedNode.index);
+
+                let focusName = clickedNode.name.split(" (")[0];
+
+                // CASE 1: Clicked a Sourcing Channel (Column 0)
                 if (clickedNode.column === 0) {{
-                    let platformFilter = clickedNode.name.split(" (")[0], downstreamStatuses = {{}};
-                    linkElements.each(function(l) {{ if (l.origin_source === platformFilter) {{ activeLinks.add(l); activeNodes.add(l.source.index); activeNodes.add(l.target.index); if (l.target.column >= 2) {{ let sName = l.target.name.split(" (")[0]; if (sName === "Screened" && l.target.column === 2) return; downstreamStatuses[sName] = (downstreamStatuses[sName] || 0) + l.value; }} }} }});
-                    let hudHtml = `<h4>${{platformFilter}} Status Breakdown</h4><ul>`;
-                    Object.keys(downstreamStatuses).sort((a,b) => downstreamStatuses[b] - downstreamStatuses[a]).forEach(s => {{ hudHtml += `<li><strong>${{s}}</strong>: ${{downstreamStatuses[s]}} application(s)</li>`; }});
-                    d3.select("#cohort-hud").html(hudHtml).style("display", "block");
+                    let platformFilter = focusName;
+                    let downstreamStatuses = {{}};
+
+                    // Trace downstream paths to harvest exact application counts by status
+                    linkElements.each(function(l) {{
+                        let pCount = (l.origins && l.origins[platformFilter]) || 0;
+                        if (pCount > 0) {{
+                            activeLinks.add(l);
+                            activeNodes.add(l.source.index);
+                            activeNodes.add(l.target.index);
+
+                            let statusName = l.target.name.split(" (")[0];
+                            
+                            if (l.target.column === 2 && statusName !== "Screened") {{
+                                downstreamStatuses[statusName] = (downstreamStatuses[statusName] || 0) + pCount;
+                            }} else if (l.target.column === 3) {{
+                                downstreamStatuses[statusName] = (downstreamStatuses[statusName] || 0) + pCount;
+                            }}
+                        }}
+                    }});
+
+                    let totalPlatformApps = Object.values(downstreamStatuses).reduce((a, b) => a + b, 0);
+
+                    if (totalPlatformApps > 0) {{
+                        let screenedCount = Object.keys(downstreamStatuses)
+                            .filter(st => st.startsWith("Screened"))
+                            .reduce((sum, st) => sum + downstreamStatuses[st], 0);
+
+                        let pending = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0);
+                        let noResponse = downstreamStatuses["Applied > No Response"] || 0;
+                        let rejected = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0);
+
+                        // Update top 2x2 KPI panel dynamically
+                        updateKPIPanel(platformFilter, clickedNode.color, totalPlatformApps, pending, screenedCount, rejected);
+
+                        let pctScreened = Math.round((screenedCount / totalPlatformApps) * 100);
+                        let pctNoResp = Math.round((noResponse / totalPlatformApps) * 100);
+                        let pctRej = Math.round((rejected / totalPlatformApps) * 100);
+                        let pctPending = Math.max(0, 100 - (pctScreened + pctNoResp + pctRej));
+
+                        let rawComposition = [
+                            {{ key: 'pending', label: 'Pending', count: pending, pct: pctPending, color: '#0284c7' }},
+                            {{ key: 'noResp',  label: 'No Resp', count: noResponse, pct: pctNoResp, color: '#d97706' }},
+                            {{ key: 'rejected', label: 'Rej',     count: rejected, pct: pctRej, color: '#ef4444' }},
+                            {{ key: 'screen',   label: 'Screen',  count: screenedCount, pct: pctScreened, color: '#10b981' }}
+                        ];
+
+                        let activeComposition = rawComposition.filter(d => d.count > 0 || d.pct > 0);
+
+                        let barSegmentsHtml = activeComposition.map(d => 
+                            `<div style="width: ${{d.pct}}%; background-color: ${{d.color}}; height: 100%; transition: width 0.3s ease;" title="${{d.label}}: ${{d.pct}}%"></div>`
+                        ).join('');
+
+                        let legendItemsHtml = activeComposition.map(d => 
+                            `<span><span style="color:${{d.color}};">■</span> ${{d.label}} ${{d.pct}}%</span>`
+                        ).join('');
+
+                        let hudHtml = `
+                            <h4>${{platformFilter}} Performance Cohort</h4>
+                            <div style="margin: 6px 0 12px 0;">
+                                <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--panel-label); margin-bottom: 4px;">Funnel Composition</div>
+                                <div style="display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(0,0,0,0.15);">
+                                    ${{barSegmentsHtml}}
+                                </div>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap; font-size: 10px; font-weight: 600; color: var(--text-sub); margin-top: 6px;">
+                                    ${{legendItemsHtml}}
+                                </div>
+                            </div>
+
+                            <div style="border-top: 1px solid var(--panel-border); padding-top: 8px;">
+                                <strong style="color: var(--text-main);">Detailed Breakdown:</strong>
+                                <ul style="margin-top: 4px; padding-left: 16px;">
+                        `;
+
+                        Object.keys(downstreamStatuses)
+                            .sort((a, b) => downstreamStatuses[b] - downstreamStatuses[a])
+                            .forEach(s => {{
+                                let count = downstreamStatuses[s];
+                                let pct = ((count / totalPlatformApps) * 100).toFixed(1);
+                                hudHtml += `<li><strong>${{s}}:</strong> ${{count}} (${{pct}}%)</li>`;
+                            }});
+
+                        hudHtml += `</ul></div>`;
+                        d3.select("#cohort-hud").html(hudHtml).style("display", "block");
+                    }}
+
                 }} else if (clickedNode.column === 1) {{
-                    linkElements.each(function(l) {{ activeLinks.add(l); activeNodes.add(l.source.index); activeNodes.add(l.target.index); }});
+                    linkElements.each(function(l) {{
+                        activeLinks.add(l);
+                        activeNodes.add(l.source.index);
+                        activeNodes.add(l.target.index);
+                    }});
+                    d3.select("#cohort-hud").style("display", "none");
+                    updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
+
                 }} else {{
-                    let exactSlices = {{}}, targetLinksToEvaluate = [];
-                    clickedNode.targetLinks.forEach(l => {{ targetLinksToEvaluate.push(l); }});
-                    targetLinksToEvaluate.forEach(link => {{ exactSlices[link.origin_source] = (exactSlices[link.origin_source] || 0) + link.value; }});
-                    
-                    linkElements.each(function(l) {{ 
-                        if (exactSlices[l.origin_source] !== undefined) {{
-                            // Column 0 -> 1 (Platform to Applied)
-                            if (l.source.column === 0 && l.target.column === 1) {{
-                                activeLinks.add(l); 
-                                activeNodes.add(l.source.index);
-                                activeNodes.add(l.target.index);
-                                d3.select(this).style("stroke-width", Math.max(2, l.originalWidth * (exactSlices[l.origin_source] / l.value))); 
-                            }} 
-                            // Column 1 -> 2 (Applied to Stage 2 Outcomes)
-                            else if (l.source.column === 1 && l.target.column === 2) {{
-                                // Direct match if we clicked a Column 2 outcome node
-                                if (clickedNode.column === 2 && l.target.index === clickedNode.index) {{
-                                    activeLinks.add(l);
-                                    activeNodes.add(l.source.index);
-                                    activeNodes.add(l.target.index);
-                                }} 
-                                // Route back through the Screened node if we clicked deep in Column 3
-                                else if (clickedNode.column === 3 && l.target.name.startsWith("Screened")) {{
-                                    activeLinks.add(l);
-                                    activeNodes.add(l.source.index);
-                                    activeNodes.add(l.target.index);
+                    let exactSlices = {{}};
+                    let targetLinksToEvaluate = clickedNode.targetLinks || [];
+
+                    targetLinksToEvaluate.forEach(l => {{
+                        if (l.origins) {{
+                            Object.keys(l.origins).forEach(p => {{
+                                exactSlices[p] = (exactSlices[p] || 0) + l.origins[p];
+                            }});
+                        }}
+                    }});
+
+                    linkElements.each(function(l) {{
+                        let isRelevant = false;
+                        if (l.origins) {{
+                            for (let p in exactSlices) {{
+                                if (l.origins[p] > 0) {{
+                                    if (l.source.column === 0 && l.target.column === 1) {{
+                                        isRelevant = true;
+                                    }} else if (l.source.column === 1 && l.target.column === 2) {{
+                                        if (clickedNode.column === 2 && l.target.index === clickedNode.index) {{
+                                            isRelevant = true;
+                                        }} else if (clickedNode.column === 3 && l.target.name.startsWith("Screened")) {{
+                                            isRelevant = true;
+                                        }}
+                                    }} else if (l.source.column === 2 && l.target.column === 3 && l.target.index === clickedNode.index) {{
+                                        isRelevant = true;
+                                    }}
                                 }}
                             }}
-                            // Column 2 -> 3 (Screened to Deep Stages)
-                            else if (l.source.column === 2 && l.target.column === 3 && l.target.index === clickedNode.index) {{
-                                activeLinks.add(l);
-                                activeNodes.add(l.source.index);
-                                activeNodes.add(l.target.index);
-                            }}
-                        }} 
+                        }}
+                        if (isRelevant) {{
+                            activeLinks.add(l);
+                            activeNodes.add(l.source.index);
+                            activeNodes.add(l.target.index);
+                        }}
                     }});
-                    
-                    let hudHtml = `<h4>${{clickedNode.name.split(" (")[0]}} Source Cohorts</h4><ul>`;
-                    Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]).forEach(p => {{ hudHtml += `<li><strong>${{p}}</strong>: ${{exactSlices[p]}} application(s)</li>`; }});
+
+                    let totalCohortApps = Object.values(exactSlices).reduce((a, b) => a + b, 0);
+                    updateKPIPanel(focusName, clickedNode.color, totalCohortApps, 0, focusName.startsWith("Screened") ? totalCohortApps : 0, focusName.includes("Rejected") ? totalCohortApps : 0);
+
+                    let hudHtml = `<h4>${{focusName}} Source Breakdown</h4><ul>`;
+                    let platformKeys = Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]);
+                    if (platformKeys.length === 0) {{
+                        hudHtml += `<li>No source cohorts found</li>`;
+                    }} else {{
+                        platformKeys.forEach(p => {{
+                            hudHtml += `<li><strong>${{p}}</strong>: ${{exactSlices[p]}} application(s)</li>`;
+                        }});
+                    }}
+                    hudHtml += `</ul>`;
                     d3.select("#cohort-hud").html(hudHtml).style("display", "block");
                 }}
+
                 linkElements.classed("faded", l => !activeLinks.has(l)).classed("highlighted-link", l => activeLinks.has(l));
-                nodeElements.classed("faded", n => !activeNodes.has(n.index)); isHighlighted = true;
+                nodeElements.classed("faded", n => !activeNodes.has(n.index));
+                isHighlighted = true;
             }});
             
             nodeElements.append("text").attr("x", d => d.x1 - d.x0 + 12).attr("y", d => (d.y1 - d.y0) / 2).attr("dy", "0.35em").text(d => d.name);
             document.getElementById("local-timestamp").innerText = new Date("{current_utc_iso}").toLocaleString();
+            
+            // Initialize global KPI state on load
+            updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
         </script>
     </body>
     </html>
