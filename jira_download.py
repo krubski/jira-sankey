@@ -125,7 +125,7 @@ if all_issues:
 
     # Target functional stages matching visualization template requirements
     valid_statuses = [
-        'Applied', 'Applied > No Response', 'Applied > Rejected', 
+        'Applied', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
         'Screened', 'Screened > Pending', 'Screened > No Response', 'Screened > Rejected'
     ]
     
@@ -162,11 +162,12 @@ if all_issues:
         # Column 1: Master Central Aggregation node
         {"id_key": "TotalApplied",           "type": "root",   "name": f"Applied ({total_applied})",                                       "column": 1, "color": "#BDBDBD", "count": total_applied},
         
-        # Column 2: Pipeline Core Progress Outcomes (Unified Green Tracks)
-        {"id_key": "Applied",                "type": "status", "name": f"Applied > Pending ({status_counts.get('Applied', 0)})",           "column": 2, "color": "#2ecc71", "count": status_counts.get('Applied', 0)},
-        {"id_key": "Applied > No Response",  "type": "status", "name": f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})", "column": 2, "color": "#f1c40f", "count": status_counts.get('Applied > No Response', 0)},
-        {"id_key": "Applied > Rejected",     "type": "status", "name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",  "column": 2, "color": "#e74c3c", "count": status_counts.get('Applied > Rejected', 0)},
-        {"id_key": "Screened",               "type": "status", "name": f"Screened ({combined_screened})",                                  "column": 2, "color": "#2ecc71", "count": combined_screened},
+        # Column 2: Pipeline Core Progress Outcomes
+        {"id_key": "Applied",                   "type": "status", "name": f"Applied > Pending ({status_counts.get('Applied', 0)})",                     "column": 2, "color": "#2ecc71", "count": status_counts.get('Applied', 0)},
+        {"id_key": "Applied > No Response",     "type": "status", "name": f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})",   "column": 2, "color": "#f1c40f", "count": status_counts.get('Applied > No Response', 0)},
+        {"id_key": "Applied > Position on Hold", "type": "status", "name": f"Applied > Position on Hold ({status_counts.get('Applied > Position on Hold', 0)})", "column": 2, "color": "#7f8c8d", "count": status_counts.get('Applied > Position on Hold', 0)},
+        {"id_key": "Applied > Rejected",        "type": "status", "name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",        "column": 2, "color": "#e74c3c", "count": status_counts.get('Applied > Rejected', 0)},
+        {"id_key": "Screened",                  "type": "status", "name": f"Screened ({combined_screened})",                                            "column": 2, "color": "#2ecc71", "count": combined_screened},
         
         # Column 3: Dedicated Deep Stages (Interview specifics)
         {"id_key": "Screened > Pending",     "type": "status", "name": f"Screened > Pending ({status_counts.get('Screened > Pending', 0)})",     "column": 3, "color": "#2ecc71", "count": status_counts.get('Screened > Pending', 0)},
@@ -186,6 +187,7 @@ if all_issues:
     status_to_node = {
         'Applied': f"Applied > Pending ({status_counts.get('Applied', 0)})",
         'Applied > No Response': f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})",
+        'Applied > Position on Hold': f"Applied > Position on Hold ({status_counts.get('Applied > Position on Hold', 0)})",
         'Applied > Rejected': f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",
         'Screened': shared_screened_label,
         'Screened > Pending': shared_screened_label,
