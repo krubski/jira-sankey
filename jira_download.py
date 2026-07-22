@@ -348,7 +348,7 @@ if all_issues:
             .container { width: 100%; max-width: 1280px; background: var(--container-bg); border: 1px solid var(--container-border); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); padding: 20px; box-sizing: border-box; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }
             
             /* Header Styling */
-            .header-layout { display: flex; flex-direction: column; gap: 20px; margin-bottom: 25px; position: relative; }
+            .header-layout { display: flex; flex-direction: column; gap: 20px; margin-bottom: 15px; position: relative; }
             @media (min-width: 850px) {
                 .header-layout { display: grid; grid-template-columns: 1fr 340px; align-items: start; }
             }
@@ -371,15 +371,34 @@ if all_issues:
                 font-size: 13.5px; 
                 line-height: 1.5;
             }
+            .title-area .timestamp-container {
+                font-family: 'Space Grotesk', sans-serif;
+                font-size: 11.5px;
+                color: var(--text-sub);
+                margin-bottom: 4px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-weight: 500;
+            }
             .title-area #local-timestamp {
-                font-family: 'Fira Code', monospace;
-                font-size: 11px;
+                font-family: 'Space Grotesk', sans-serif;
+                font-size: 11.5px;
                 background: var(--timestamp-bg);
                 border: 1px solid var(--timestamp-border);
-                padding: 3px 10px;
+                padding: 4px 10px;
                 border-radius: 12px;
                 color: var(--timestamp-color);
                 font-weight: 500;
+                letter-spacing: -0.01em;
+            }
+            .title-area .interaction-hint {
+                font-family: 'Fira Code', monospace;
+                font-size: 11px;
+                color: var(--text-sub);
+                margin-top: 4px;
+                font-weight: 500;
+                opacity: 0.85;
             }
 
             /* Controls Container (Theme Toggle & Refresh Button) */
@@ -572,8 +591,12 @@ if all_issues:
                             </button>
                         </div>
                     </h2>
-                    <p>Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>.</p>
-                    <p>Last Synchronized: <span id="local-timestamp">Calculating...</span></p>
+                    <div class="timestamp-container">
+                        <span>Last Synchronized:</span> <span id="local-timestamp">Calculating...</span>
+                    </div>
+                    <div class="interaction-hint">
+                        💡 Click any source or status node in the chart below to inspect related funnel metrics and breakdowns.
+                    </div>
                 </div>
 
                 <!-- Dynamic KPI Summary Card Panel -->
@@ -848,7 +871,7 @@ if all_issues:
                         });
 
                         let hudHtml = `
-                            <h4>${platformFilter} Performance Cohort</h4>
+                            <h4>${platformFilter} Performance</h4>
                             <div style="margin-bottom: 10px;">
                                 <strong style="font-size: 11px; text-transform: uppercase; color: var(--panel-label);">Funnel Composition</strong>
                                 <div style="display: flex; height: 12px; width: 100%; background: var(--card-border); border-radius: 6px; overflow: hidden; margin-top: 6px;">
