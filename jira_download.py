@@ -382,7 +382,17 @@ if all_issues:
                 font-weight: 500;
             }
 
-            /* Modern Segmented Toggle Switch to the right of 'pipeline' in header */
+            /* Controls Container (Theme Toggle & Refresh Button) */
+            .header-controls {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                vertical-align: middle;
+                margin-left: 8px;
+                flex-wrap: wrap;
+            }
+
+            /* Modern Segmented Toggle Switch */
             .theme-switch {
                 display: inline-flex;
                 align-items: center;
@@ -392,8 +402,6 @@ if all_issues:
                 padding: 2px;
                 cursor: pointer;
                 user-select: none;
-                vertical-align: middle;
-                margin-left: 8px;
                 box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
                 transition: background-color 0.3s ease, border-color 0.3s ease;
             }
@@ -414,6 +422,32 @@ if all_issues:
                 background: var(--toggle-knob-bg);
                 color: var(--toggle-text-active);
                 box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+            }
+
+            /* Refresh Button Styling */
+            .refresh-btn {
+                font-family: 'Fira Code', monospace;
+                font-size: 11px;
+                font-weight: 600;
+                background: var(--toggle-track-bg);
+                border: 1px solid var(--toggle-border);
+                color: var(--text-main);
+                padding: 6px 12px;
+                border-radius: 16px;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                transition: all 0.2s ease;
+            }
+            .refresh-btn:hover:not(:disabled) {
+                background: #0284c7;
+                border-color: #0284c7;
+                color: #ffffff;
+            }
+            .refresh-btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
             }
 
             /* Unified KPI Panel Styling */
@@ -526,10 +560,16 @@ if all_issues:
                 <div class="title-area">
                     <h2>
                         Jira Application Source Pipeline
-                        <!-- Segmented Theme Toggle Switch to the right of 'pipeline' -->
-                        <div class="theme-switch" id="theme-switch" data-active="dark" onclick="toggleTheme()">
-                            <span class="theme-option light-opt">☀️ Light</span>
-                            <span class="theme-option dark-opt">🌙 Dark</span>
+                        <div class="header-controls">
+                            <!-- Segmented Theme Toggle Switch -->
+                            <div class="theme-switch" id="theme-switch" data-active="dark" onclick="toggleTheme()">
+                                <span class="theme-option light-opt">☀️ Light</span>
+                                <span class="theme-option dark-opt">🌙 Dark</span>
+                            </div>
+                            <!-- Pipedream Webhook Refresh Button -->
+                            <button id="refresh-pipeline-btn" class="refresh-btn" onclick="triggerPipelineRefresh()">
+                                🔄 Refresh Jira
+                            </button>
                         </div>
                     </h2>
                     <p>Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>.</p>
@@ -607,6 +647,71 @@ if all_issues:
                 }
             })();
 
+            // Pipedream Webhook Refresh Trigger Logic
+            async function triggerPipelineRefresh() {
+                const btn = document.getElementById('refresh-pipeline-btn');
+                
+                btn.disabled = true;
+                btn.innerText = '⏳ Triggering...';
+
+                // Replace with your actual Pipedream webhook URL
+                const pipedreamUrl = 'https://eou1nnahbcdjjr8.m.pipedream.net';
+
+                try {
+                    const response = await fetch(pipedreamUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ source: 'webpage-ui-button' })
+                    });
+
+                    if (response.ok) {
+                        showNotification('✅ Refresh triggered successfully! GitHub Actions is now updating your live dashboard.', 'success');
+                    } else {
+                        showNotification('❌ Failed to trigger refresh. Check console for details.', 'error');
+                        console.error('Pipedream response error:', await response.text());
+                    }
+                } catch (error) {
+                    console.error('Network error:', error);
+                    showNotification('❌ Network error while trying to trigger refresh.', 'error');
+                } finally {
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.innerText = '🔄 Refresh Jira';
+                    }, 3000);
+                }
+            }
+
+            // Custom inline notification helper (replaces browser alert dialog)
+            function showNotification(message, type) {
+                let notif = document.getElementById('custom-notification');
+                if (!notif) {
+                    notif = document.createElement('div');
+                    notif.id = 'custom-notification';
+                    notif.style.cssText = 'margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 12px; font-family: "Fira Code", monospace; font-weight: 500; transition: all 0.3s ease;';
+                    document.querySelector('.title-area').appendChild(notif);
+                }
+                
+                if (type === 'success') {
+                    notif.style.background = 'rgba(46, 204, 113, 0.15)';
+                    notif.style.border = '1px solid rgba(46, 204, 113, 0.4)';
+                    notif.style.color = '#2ecc71';
+                } else {
+                    notif.style.background = 'rgba(231, 76, 60, 0.15)';
+                    notif.style.border = '1px solid rgba(231, 76, 60, 0.4)';
+                    notif.style.color = '#e74c3c';
+                }
+                
+                notif.innerText = message;
+                notif.style.display = 'block';
+
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    notif.style.display = 'none';
+                }, 5000);
+            }
+
             const graphData = ''' + d3_data_json + ''';
             graphData.links.forEach(l => { l.originalWidth = l.width; });
             
@@ -643,7 +748,6 @@ if all_issues:
                 d3.select("#cohort-hud").style("display", "none"); 
                 isHighlighted = false; 
 
-                // Reset KPI Panel back to global totals
                 updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
             }
             
@@ -676,12 +780,10 @@ if all_issues:
 
                 let focusName = clickedNode.name.split(" (")[0];
 
-                // CASE 1: Clicked a Sourcing Channel (Column 0)
                 if (clickedNode.column === 0) {
                     let platformFilter = focusName;
                     let downstreamStatuses = {};
 
-                    // Trace downstream paths to harvest exact application counts by status
                     linkElements.each(function(l) {
                         let pCount = (l.origins && l.origins[platformFilter]) || 0;
                         if (pCount > 0) {
@@ -710,7 +812,6 @@ if all_issues:
                         let noResponsePctRaw = totalPlatformApps > 0 ? (noResponseCount / totalPlatformApps) * 100 : 0;
                         let rejectedPctRaw = totalPlatformApps > 0 ? (rejectedCount / totalPlatformApps) * 100 : 0;
 
-                        // Normalize raw percentages to guarantee exact 100% fill and eliminate rendering sub-pixel rounding gaps
                         let totalRawSum = pendingPctRaw + noResponsePctRaw + rejectedPctRaw;
                         if (totalRawSum > 0 && totalRawSum !== 100) {
                             pendingPctRaw = (pendingPctRaw / totalRawSum) * 100;
@@ -722,14 +823,12 @@ if all_issues:
                         let noResponsePctText = noResponsePctRaw.toFixed(1);
                         let rejectedPctText = rejectedPctRaw.toFixed(1);
 
-                        // Update top 2x2 KPI panel dynamically
                         let screenedCount = Object.keys(downstreamStatuses)
                             .filter(st => st.startsWith("Screened"))
                             .reduce((sum, st) => sum + downstreamStatuses[st], 0);
 
                         updateKPIPanel(platformFilter, clickedNode.color, totalPlatformApps, pendingCount, screenedCount, rejectedCount);
 
-                        // Build segments dynamically (using normalized widths to fill 100% width precisely)
                         let barSegmentsHtml = "";
                         let labelsHtml = "";
                         let currentOffset = 0;
@@ -842,7 +941,6 @@ if all_issues:
             nodeElements.append("text").attr("x", d => d.x1 - d.x0 + 12).attr("y", d => (d.y1 - d.y0) / 2).attr("dy", "0.35em").text(d => d.name);
             document.getElementById("local-timestamp").innerText = new Date("''' + current_utc_iso + '''").toLocaleString();
             
-            // Initialize global KPI state on load
             updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
         </script>
     </body>
