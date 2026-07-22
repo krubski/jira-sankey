@@ -123,14 +123,21 @@ if all_issues:
 
     df_clean['Source'] = df_clean['Source'].apply(clean_source_casing)
 
-    # Target functional stages matching visualization template requirements
+    # Target functional stages matching visualization template requirements (mapping raw 'Screened' to 'Screened > Pending')
+    def map_and_filter_status(status_val):
+        if status_val == 'Screened':
+            return 'Screened > Pending'
+        return status_val
+
+    df_clean['Status'] = df_clean['Status'].apply(map_and_filter_status)
+
     valid_statuses = [
         'Applied', 'Applied > Pending', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
-        'Screened', 'Screened > Pending', 'Screened > No Response', 'Screened > Rejected'
+        'Screened > Pending', 'Screened > No Response', 'Screened > Rejected'
     ]
     
     print("\n4. Filtering Status Distribution Counts...")
-    print("   -> Unique statuses found in your raw Jira data:")
+    print("   -> Unique statuses found in your raw Jira data (with mapping applied):")
     print(df_clean['Status'].value_counts())
     
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
@@ -148,7 +155,7 @@ if all_issues:
     applied_pending_count = status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0)
 
     # Consolidate deep stages back into their respective high-level categories
-    combined_screened = sum(status_counts.get(st, 0) for st in ['Screened', 'Screened > Pending', 'Screened > No Response', 'Screened > Rejected'])
+    combined_screened = sum(status_counts.get(st, 0) for st in ['Screened > Pending', 'Screened > No Response', 'Screened > Rejected'])
 
     raw_nodes_config = [
         # Column 0: Sourcing Channels
@@ -193,7 +200,6 @@ if all_issues:
         'Applied > No Response': f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})",
         'Applied > Position on Hold': f"Applied > Position on Hold ({status_counts.get('Applied > Position on Hold', 0)})",
         'Applied > Rejected': f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",
-        'Screened': shared_screened_label,
         'Screened > Pending': shared_screened_label,
         'Screened > No Response': shared_screened_label,
         'Screened > Rejected': shared_screened_label
@@ -233,9 +239,6 @@ if all_issues:
                 col4_name = f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})"
                 
             links_raw.append({"source": shared_screened_label, "target": col4_name, "origin": src})
-            
-        elif status == 'Screened':
-            links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src})
             
         else:
             # Direct single-link mapping from Root to Column 2 target
@@ -529,6 +532,7 @@ if all_issues:
                             <span class="theme-option dark-opt">🌙 Dark</span>
                         </div>
                     </h2>
+                    <p>Interactive 4-Column Pipeline built natively with <strong>D3.js</strong>.</p>
                     <p>Last Synchronized: <span id="local-timestamp">Calculating...</span></p>
                 </div>
 
