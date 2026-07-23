@@ -18,7 +18,6 @@ JIRA_EMAIL = os.environ.get('JIRA_EMAIL')
 JIRA_TOKEN = os.environ.get('JIRA_TOKEN') 
 JIRA_FILTER_ID = os.environ.get('JIRA_FILTER_ID')
 
-# Format base endpoint cleanly
 if JIRA_URL and JIRA_URL.startswith('http'):
     clean_domain = JIRA_URL.replace('https://', '').replace('http://', '').split('/')[0]
     api_url = f'https://{clean_domain}/rest/api/3/search/jql'
@@ -123,7 +122,6 @@ if all_issues:
     # 4. FILTERING STATUS DISTRIBUTION COUNTS (QA)
     # ==========================================
     print("\n4. Filtering Status Distribution Counts...")
-    print("   -> Unique statuses found in your raw Jira data (with mapping applied):")
     raw_status_counts = df_clean['Status'].value_counts()
     print(raw_status_counts)
 
@@ -144,7 +142,14 @@ if all_issues:
     status_counts = df_filtered['Status'].value_counts().to_dict()
 
     applied_pending_count = status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0)
-    combined_screened = sum(status_counts.get(st, 0) for st in ['Screened > Pending', 'Screened > No Response', 'Screened > Rejected'])
+    
+    # Calculate exact counts for individual post-screen statuses
+    screened_pending_count = status_counts.get('Screened > Pending', 0)
+    screened_rejected_count = status_counts.get('Screened > Rejected', 0)
+    interviewed_count = status_counts.get('Interviewed (Hiring Manager)', 0)
+    
+    # Total screened-stage volume for Column 2 intermediate aggregation
+    combined_screened = screened_pending_count + screened_rejected_count + interviewed_count
 
     raw_nodes_config = [
         {"id_key": "Builtin",                "type": "source", "name": f"Builtin ({source_counts.get('Builtin', 0)})",                     "column": 0, "color": "#07006c", "count": source_counts.get('Builtin', 0)},
@@ -165,10 +170,10 @@ if all_issues:
         {"id_key": "Applied > Rejected",        "type": "status", "name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",        "column": 2, "color": "#e74c3c", "count": status_counts.get('Applied > Rejected', 0)},
         {"id_key": "Screened",                  "type": "status", "name": f"Screened ({combined_screened})",                                            "column": 2, "color": "#2ecc71", "count": combined_screened},
         
-        {"id_key": "Screened > Pending",               "type": "status", "name": f"Screened > Pending ({status_counts.get('Screened > Pending', 0)})",                     "column": 3, "color": "#06b6d4", "count": status_counts.get('Screened > Pending', 0)},
+        {"id_key": "Screened > Pending",               "type": "status", "name": f"Screened > Pending ({screened_pending_count})",                 "column": 3, "color": "#06b6d4", "count": screened_pending_count},
         {"id_key": "Screened > No Response",           "type": "status", "name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})",             "column": 3, "color": "#f1c40f", "count": status_counts.get('Screened > No Response', 0)},
-        {"id_key": "Screened > Rejected",              "type": "status", "name": f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})",                   "column": 3, "color": "#e74c3c", "count": status_counts.get('Screened > Rejected', 0)},
-        {"id_key": "Interviewed (Hiring Manager)",     "type": "status", "name": f"Interviewed (Hiring Manager) ({status_counts.get('Interviewed (Hiring Manager)', 0)})", "column": 3, "color": "#2ecc71", "count": status_counts.get('Interviewed (Hiring Manager)', 0)}
+        {"id_key": "Screened > Rejected",              "type": "status", "name": f"Screened > Rejected ({screened_rejected_count})",               "column": 3, "color": "#e74c3c", "count": screened_rejected_count},
+        {"id_key": "Interviewed (Hiring Manager)",     "type": "status", "name": f"Interviewed (Hiring Manager) ({interviewed_count})",            "column": 3, "color": "#2ecc71", "count": interviewed_count}
     ]
 
     nodes_config = [node for node in raw_nodes_config if node["count"] > 0]
@@ -214,16 +219,16 @@ if all_issues:
             links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src, "status_attr": status})
             
             if status == 'Screened > Pending':
-                col_name = f"Screened > Pending ({status_counts.get('Screened > Pending', 0)})"
+                col_name = f"Screened > Pending ({screened_pending_count})"
                 links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
             elif status == 'Screened > No Response':
                 col_name = f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})"
                 links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
             elif status == 'Screened > Rejected':
-                col_name = f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})"
+                col_name = f"Screened > Rejected ({screened_rejected_count})"
                 links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
             else:
-                col3_interview_name = f"Interviewed (Hiring Manager) ({status_counts.get('Interviewed (Hiring Manager)', 0)})"
+                col3_interview_name = f"Interviewed (Hiring Manager) ({interviewed_count})"
                 links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
             
         else:
@@ -697,8 +702,8 @@ if all_issues:
             
             const globalTotalApps = ''' + str(total_applied) + ''';
             const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Interviewed (Hiring Manager)', 0)) + ''';
-            const globalScreened = ''' + str(combined_screened + status_counts.get('Interviewed (Hiring Manager)', 0)) + ''';
-            const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + status_counts.get('Screened > Rejected', 0)) + ''';
+            const globalScreened = ''' + str(combined_screened + interviewed_count) + ''';
+            const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + screened_rejected_count) + ''';
 
             function updateKPIPanel(name, color, total, active, screened, rejected) {
                 const badge = d3.select("#focus-badge");
@@ -732,7 +737,6 @@ if all_issues:
                 .nodePadding(12)
                 .extent([[10, 10], [width - 240, height - 10]]);
 
-            // 1. Run sankey layout normally first
             let graph = sankey(graphData);
             
             const totalCols = 4, colWidth = (width - 240) / (totalCols - 1);
@@ -742,7 +746,6 @@ if all_issues:
             });
             sankey.update(graph);
 
-            // 2. FORCE MANUAL VERTICAL SORTING FOR COLUMNS 2 & 3
             const explicitOrders = {
                 2: [
                     "Applied > Pending",
@@ -763,14 +766,12 @@ if all_issues:
                 const colNodes = graph.nodes.filter(n => n.column === colIndex);
                 const orderArray = explicitOrders[colIndex];
                 
-                // Sort nodes based on your array definition
                 colNodes.sort((a, b) => {
                     let aClean = a.name.split(" (")[0];
                     let bClean = b.name.split(" (")[0];
                     return orderArray.indexOf(aClean) - orderArray.indexOf(bClean);
                 });
 
-                // Re-stack them vertically with proper spacing and node heights
                 let currentY = 10;
                 colNodes.forEach(node => {
                     let nodeHeight = node.y1 - node.y0;
@@ -780,10 +781,8 @@ if all_issues:
                 });
             });
 
-            // Re-run sankey update to adjust link paths to the new forced node coordinates
             sankey.update(graph);
             
-            // 3. SORT LINK INDICES TO PREVENT CROSSOVERS INTO & OUT OF COLUMN 2
             graph.nodes.forEach(node => {
                 if (node.column === 1) {
                     node.sourceLinks.sort((a, b) => {
