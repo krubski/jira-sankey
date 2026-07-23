@@ -258,7 +258,7 @@ if all_issues:
     # ==========================================
     # 7. D3.JS RUNTIME HTML TEMPLATE GENERATION
     # ==========================================
-    print("\n6. Compiling HTML template data with Fully Responsive Fit & Status Attribution...")
+    print("\n6. Compiling HTML template data with custom column sorting...")
     html_template = '''<!DOCTYPE html>
     <html>
     <head>
@@ -504,9 +504,8 @@ if all_issues:
                 color: var(--card-val);
             }
 
-            /* Responsive SVG Wrapper */
-            .svg-wrapper { width: 100%; overflow: hidden; }
-            #sankey_svg { width: 100%; height: auto; display: block; }
+            .svg-wrapper { width: 100%; position: relative; }
+            #sankey_svg { width: 100%; height: 500px; display: block; }
             
             .node rect { fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: var(--container-bg); stroke-width: 2px; cursor: pointer; }
             .node rect:hover { filter: brightness(1.15); }
@@ -597,9 +596,8 @@ if all_issues:
                 </div>
             </div>
 
-            <!-- Fully responsive SVG wrapper -->
             <div class="svg-wrapper">
-                <svg id="sankey_svg" viewBox="0 0 1200 580" preserveAspectRatio="xMidYMid meet"></svg>
+                <svg id="sankey_svg" viewBox="0 0 1200 500" preserveAspectRatio="xMidYMid meet"></svg>
             </div>
 
             <div id="cohort-hud"></div>
@@ -694,7 +692,7 @@ if all_issues:
             const graphData = ''' + d3_data_json + ''';
             graphData.links.forEach(l => { l.originalWidth = l.width; });
             
-            const svg = d3.select("#sankey_svg"), width = 1200, height = 580;
+            const svg = d3.select("#sankey_svg"), width = 1200, height = 500;
             svg.on("click", function(event) { if (event.target.tagName === "svg") resetSankeyEffects(); });
             
             const globalTotalApps = ''' + str(total_applied) + ''';
@@ -729,13 +727,76 @@ if all_issues:
                 updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
             }
             
-            const sankey = d3.sankey().nodeWidth(20).nodePadding(15).extent([[10, 10], [width - 240, height - 10]]);
+            const sankey = d3.sankey()
+                .nodeWidth(20)
+                .nodePadding(12)
+                .extent([[10, 10], [width - 240, height - 10]]);
+
+            // 1. Run sankey layout normally first
             let graph = sankey(graphData);
             
             const totalCols = 4, colWidth = (width - 240) / (totalCols - 1);
-            graph.nodes.forEach(node => { node.x0 = node.column * colWidth; node.x1 = node.x0 + sankey.nodeWidth(); });
+            graph.nodes.forEach(node => { 
+                node.x0 = node.column * colWidth; 
+                node.x1 = node.x0 + sankey.nodeWidth(); 
+            });
+            sankey.update(graph);
+
+            // 2. FORCE MANUAL VERTICAL SORTING FOR COLUMNS 2 & 3
+            const explicitOrders = {
+                2: [
+                    "Applied > Pending",
+                    "Screened",
+                    "Applied > Position on Hold",
+                    "Applied > No Response",
+                    "Applied > Rejected"
+                ],
+                3: [
+                    "Screened > Pending",
+                    "Interviewed (Hiring Manager)",
+                    "Screened > No Response",
+                    "Screened > Rejected"
+                ]
+            };
+
+            [2, 3].forEach(colIndex => {
+                const colNodes = graph.nodes.filter(n => n.column === colIndex);
+                const orderArray = explicitOrders[colIndex];
+                
+                // Sort nodes based on your array definition
+                colNodes.sort((a, b) => {
+                    let aClean = a.name.split(" (")[0];
+                    let bClean = b.name.split(" (")[0];
+                    return orderArray.indexOf(aClean) - orderArray.indexOf(bClean);
+                });
+
+                // Re-stack them vertically with proper spacing and node heights
+                let currentY = 10;
+                colNodes.forEach(node => {
+                    let nodeHeight = node.y1 - node.y0;
+                    node.y0 = currentY;
+                    node.y1 = currentY + nodeHeight;
+                    currentY += nodeHeight + sankey.nodePadding();
+                });
+            });
+
+            // Re-run sankey update to adjust link paths to the new forced node coordinates
             sankey.update(graph);
             
+            // 3. SORT LINK INDICES TO PREVENT CROSSOVERS INTO & OUT OF COLUMN 2
+            graph.nodes.forEach(node => {
+                if (node.column === 1) {
+                    node.sourceLinks.sort((a, b) => {
+                        return a.target.y0 - b.target.y0;
+                    });
+                } else if (node.column === 2) {
+                    node.sourceLinks.sort((a, b) => {
+                        return a.target.y0 - b.target.y0;
+                    });
+                }
+            });
+            sankey.update(graph);
+
             const tooltip = d3.select("#tooltip");
             const defs = svg.append("defs");
             
@@ -749,7 +810,6 @@ if all_issues:
             
             const linkElements = svg.append("g").attr("fill", "none").selectAll("path").data(graph.links).enter().append("path").attr("class", "link").attr("d", d3.sankeyLinkHorizontal()).attr("stroke", (d, i) => `url(#grad-${i})`).style("stroke-width", d => Math.max(1.5, d.width));
             
-            // Hover Tooltip logic displaying source breakdown & status attributions
             linkElements.on("mouseover", function(event, d) {
                 d3.select(this).style("stroke-opacity", 0.85);
                 let htmlContent = `<strong>${d.source.name.split(' (')[0]} ➔ ${d.target.name.split(' (')[0]}</strong><br/>Volume: ${d.value}`;
