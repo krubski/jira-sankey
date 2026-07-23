@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 # 1. INITIALIZATION & ENVIRONMENT SETUP
 # ==========================================
 print("1. Initializing script and loading environment...")
-load_dotenv()  # Automatically load local .env file variables
+load_dotenv()
 
 current_utc_iso = datetime.now(timezone.utc).isoformat()
 
@@ -18,19 +18,13 @@ JIRA_EMAIL = os.environ.get('JIRA_EMAIL')
 JIRA_TOKEN = os.environ.get('JIRA_TOKEN') 
 JIRA_FILTER_ID = os.environ.get('JIRA_FILTER_ID')
 
-print(f"   -> JIRA_URL: {JIRA_URL}")
-print(f"   -> JIRA_EMAIL: {JIRA_EMAIL}")
-print(f"   -> JIRA_FILTER_ID: {JIRA_FILTER_ID}")
-print("   -> JIRA_TOKEN is " + ("present." if JIRA_TOKEN else "MISSING!"))
-
-# Format base endpoint cleanly regardless of environment protocol string
+# Format base endpoint cleanly
 if JIRA_URL and JIRA_URL.startswith('http'):
     clean_domain = JIRA_URL.replace('https://', '').replace('http://', '').split('/')[0]
     api_url = f'https://{clean_domain}/rest/api/3/search/jql'
 else:
     api_url = f'https://{JIRA_URL}/rest/api/3/search/jql'
 
-# Define Unicode token for the 🥇 (Gold Medal) emoji to keep f-string building simple
 favicon_emoji = "\U0001F947"
 
 
@@ -66,12 +60,9 @@ while True:
         data = response.json()
         batch = data.get('issues', [])
         if not batch:
-            print("   -> Received empty batch of issues. Breaking loop.")
             break
 
         all_issues.extend(batch)
-        print(f'   -> Retrieved {len(all_issues)} issues so far...')
-        
         next_page_token = data.get('nextPageToken')
         if not next_page_token:
             break
@@ -99,7 +90,6 @@ if all_issues:
         'fields.customfield_10042.value': 'Source',
     }
 
-    # Filter and rename incoming payload columns safely
     existing_columns = [col for col in columns_to_keep.keys() if col in df.columns]
     df_clean = df[existing_columns].rename(columns=columns_to_keep)
 
@@ -112,7 +102,6 @@ if all_issues:
     df_clean['Source'] = df_clean['Source'].astype(str)
     df_clean['Status'] = df_clean['Status'].astype(str)
 
-    # Standardize string formatting for specific hiring channels
     def clean_source_casing(src):
         mapping = {
             'linkedin': 'LinkedIn', 'builtin': 'Builtin', 
@@ -123,7 +112,6 @@ if all_issues:
 
     df_clean['Source'] = df_clean['Source'].apply(clean_source_casing)
 
-    # Target functional stages matching visualization template requirements (mapping raw 'Screened' to 'Screened > Pending')
     def map_and_filter_status(status_val):
         if status_val == 'Screened':
             return 'Screened > Pending'
@@ -131,34 +119,34 @@ if all_issues:
 
     df_clean['Status'] = df_clean['Status'].apply(map_and_filter_status)
 
-    valid_statuses = [
-        'Applied', 'Applied > Pending', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
-        'Screened > Pending', 'Screened > No Response', 'Screened > Rejected'
-    ]
-    
+    # ==========================================
+    # 4. FILTERING STATUS DISTRIBUTION COUNTS (QA)
+    # ==========================================
     print("\n4. Filtering Status Distribution Counts...")
     print("   -> Unique statuses found in your raw Jira data (with mapping applied):")
-    print(df_clean['Status'].value_counts())
+    raw_status_counts = df_clean['Status'].value_counts()
+    print(raw_status_counts)
+
+    valid_statuses = [
+        'Applied', 'Applied > Pending', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
+        'Screened > Pending', 'Screened > No Response', 'Screened > Rejected', 'Interviewed (Hiring Manager)'
+    ]
     
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
     print(f"   -> Count after matching against valid pipeline statuses: {len(df_filtered)}")
 
 
     # ==========================================
-    # 4. SANKEY PIPELINE COUNTS & NODE GENERATION
+    # 5. SANKEY PIPELINE COUNTS & NODE GENERATION
     # ==========================================
     total_applied = len(df_filtered)
     source_counts = df_filtered['Source'].value_counts().to_dict()
     status_counts = df_filtered['Status'].value_counts().to_dict()
 
-    # Consolidate 'Applied' and 'Applied > Pending' into one count for the node
     applied_pending_count = status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0)
-
-    # Consolidate deep stages back into their respective high-level categories
     combined_screened = sum(status_counts.get(st, 0) for st in ['Screened > Pending', 'Screened > No Response', 'Screened > Rejected'])
 
     raw_nodes_config = [
-        # Column 0: Sourcing Channels
         {"id_key": "Builtin",                "type": "source", "name": f"Builtin ({source_counts.get('Builtin', 0)})",                     "column": 0, "color": "#07006c", "count": source_counts.get('Builtin', 0)},
         {"id_key": "Dad",                    "type": "source", "name": f"Dad ({source_counts.get('Dad', 0)})",                             "column": 0, "color": "#d4af37", "count": source_counts.get('Dad', 0)},
         {"id_key": "Indeed",                 "type": "source", "name": f"Indeed ({source_counts.get('Indeed', 0)})",                       "column": 0, "color": "#2164f3", "count": source_counts.get('Indeed', 0)},
@@ -169,23 +157,20 @@ if all_issues:
         {"id_key": "Scoutify",               "type": "source", "name": f"Scoutify ({source_counts.get('Scoutify', 0)})",                   "column": 0, "color": "#7bcd9d", "count": source_counts.get('Scoutify', 0)},
         {"id_key": "Simplify",               "type": "source", "name": f"Simplify ({source_counts.get('Simplify', 0)})",                   "column": 0, "color": "#3bc4d7", "count": source_counts.get('Simplify', 0)},
         
-        # Column 1: Master Central Aggregation node
         {"id_key": "TotalApplied",           "type": "root",   "name": f"Applied ({total_applied})",                                       "column": 1, "color": "#64748b", "count": total_applied},
         
-        # Column 2: Pipeline Core Progress Outcomes
         {"id_key": "Applied > Pending",         "type": "status", "name": f"Applied > Pending ({applied_pending_count})",                       "column": 2, "color": "#2ecc71", "count": applied_pending_count},
         {"id_key": "Applied > No Response",     "type": "status", "name": f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})",   "column": 2, "color": "#f1c40f", "count": status_counts.get('Applied > No Response', 0)},
         {"id_key": "Applied > Position on Hold", "type": "status", "name": f"Applied > Position on Hold ({status_counts.get('Applied > Position on Hold', 0)})", "column": 2, "color": "#7f8c8d", "count": status_counts.get('Applied > Position on Hold', 0)},
         {"id_key": "Applied > Rejected",        "type": "status", "name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",        "column": 2, "color": "#e74c3c", "count": status_counts.get('Applied > Rejected', 0)},
         {"id_key": "Screened",                  "type": "status", "name": f"Screened ({combined_screened})",                                            "column": 2, "color": "#2ecc71", "count": combined_screened},
         
-        # Column 3: Dedicated Deep Stages
-        {"id_key": "Screened > Pending",     "type": "status", "name": f"Screened > Pending ({status_counts.get('Screened > Pending', 0)})",     "column": 3, "color": "#2ecc71", "count": status_counts.get('Screened > Pending', 0)},
-        {"id_key": "Screened > No Response", "type": "status", "name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})", "column": 3, "color": "#f1c40f", "count": status_counts.get('Screened > No Response', 0)},
-        {"id_key": "Screened > Rejected",    "type": "status", "name": f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})",   "column": 3, "color": "#e74c3c", "count": status_counts.get('Screened > Rejected', 0)}
+        {"id_key": "Screened > Pending",               "type": "status", "name": f"Screened > Pending ({status_counts.get('Screened > Pending', 0)})",                     "column": 3, "color": "#06b6d4", "count": status_counts.get('Screened > Pending', 0)},
+        {"id_key": "Screened > No Response",           "type": "status", "name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})",             "column": 3, "color": "#f1c40f", "count": status_counts.get('Screened > No Response', 0)},
+        {"id_key": "Screened > Rejected",              "type": "status", "name": f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})",                   "column": 3, "color": "#e74c3c", "count": status_counts.get('Screened > Rejected', 0)},
+        {"id_key": "Interviewed (Hiring Manager)",     "type": "status", "name": f"Interviewed (Hiring Manager) ({status_counts.get('Interviewed (Hiring Manager)', 0)})", "column": 3, "color": "#2ecc71", "count": status_counts.get('Interviewed (Hiring Manager)', 0)}
     ]
 
-    # Filter out empty nodes to prevent orphan text blocks from appearing on the graph canvas
     nodes_config = [node for node in raw_nodes_config if node["count"] > 0]
     active_keys = {n["id_key"] for n in nodes_config}
     node_name_to_idx = {n["name"]: i for i, n in enumerate(nodes_config)}
@@ -202,12 +187,13 @@ if all_issues:
         'Applied > Rejected': f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",
         'Screened > Pending': shared_screened_label,
         'Screened > No Response': shared_screened_label,
-        'Screened > Rejected': shared_screened_label
+        'Screened > Rejected': shared_screened_label,
+        'Interviewed (Hiring Manager)': shared_screened_label
     }
 
 
     # ==========================================
-    # 5. HIGH-ACCURACY DATA LINK ROUTING LOOP
+    # 6. HIGH-ACCURACY DATA LINK ROUTING LOOP
     # ==========================================
     links_raw = []
 
@@ -215,7 +201,6 @@ if all_issues:
         src = row['Source']
         status = row['Status']
         
-        # Check node validity before mapping path records
         if status not in valid_statuses or src not in source_to_node:
             continue
         if src not in active_keys or "TotalApplied" not in active_keys:
@@ -223,30 +208,29 @@ if all_issues:
 
         src_node = source_to_node[src]
         
-        # Rule 1: Every application links first from its Platform -> Consolidated Root Node
-        links_raw.append({"source": src_node, "target": root_node_name, "origin": src})
+        links_raw.append({"source": src_node, "target": root_node_name, "origin": src, "status_attr": status})
 
-        # Rule 2: Multi-stage mapping routing paths out from Consolidated Root
-        if status.startswith('Screened >'):
-            links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src})
+        if status.startswith('Screened >') or status == 'Interviewed (Hiring Manager)':
+            links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src, "status_attr": status})
             
-            # Sub-allocation into deep 4th column endpoints
             if status == 'Screened > Pending':
-                col4_name = f"Screened > Pending ({status_counts.get('Screened > Pending', 0)})"
+                col_name = f"Screened > Pending ({status_counts.get('Screened > Pending', 0)})"
+                links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
             elif status == 'Screened > No Response':
-                col4_name = f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})"
+                col_name = f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})"
+                links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
+            elif status == 'Screened > Rejected':
+                col_name = f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})"
+                links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
             else:
-                col4_name = f"Screened > Rejected ({status_counts.get('Screened > Rejected', 0)})"
-                
-            links_raw.append({"source": shared_screened_label, "target": col4_name, "origin": src})
+                col3_interview_name = f"Interviewed (Hiring Manager) ({status_counts.get('Interviewed (Hiring Manager)', 0)})"
+                links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
             
         else:
-            # Direct single-link mapping from Root to Column 2 target
             dest_node = status_to_node.get(status)
             if dest_node and dest_node in node_name_to_idx:
-                links_raw.append({"source": root_node_name, "target": dest_node, "origin": src})
+                links_raw.append({"source": root_node_name, "target": dest_node, "origin": src, "status_attr": status})
 
-    # Group matching linkages into SINGLE links per path, but keep origin breakdown metadata for the HUD
     links_config = []
     if links_raw:
         links_df = pd.DataFrame(links_raw)
@@ -254,14 +238,15 @@ if all_issues:
         for (src_name, tgt_name), group in grouped:
             if src_name in node_name_to_idx and tgt_name in node_name_to_idx:
                 origin_counts = group['origin'].value_counts().to_dict()
+                status_attr_counts = group['status_attr'].value_counts().to_dict()
                 links_config.append({
                     "source": node_name_to_idx[src_name],
                     "target": node_name_to_idx[tgt_name],
                     "value": len(group),
-                    "origins": origin_counts
+                    "origins": origin_counts,
+                    "status_attrs": status_attr_counts
                 })
 
-    # Clean temporary calculation fields to form raw compliance D3 payload structures
     for n in nodes_config:
         n.pop("id_key", None)
         n.pop("type", None)
@@ -271,24 +256,21 @@ if all_issues:
 
 
     # ==========================================
-    # 6. D3.JS RUNTIME HTML TEMPLATE GENERATION
+    # 7. D3.JS RUNTIME HTML TEMPLATE GENERATION
     # ==========================================
-    print("\n5. Compiling HTML template data with Unified Light/Dark Theme variables...")
+    print("\n6. Compiling HTML template data with Fully Responsive Fit & Status Attribution...")
     html_template = '''<!DOCTYPE html>
     <html>
     <head>
         <title>Jira Application Source Pipeline (D3.js)</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <!-- Google Fonts: Space Grotesk (Title & KPI Numerics) + Fira Code (Monospace Labels) -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-        <!-- Inline Data URI SVG Favicon pulling from the 🥇 Unicode point -->
         <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>''' + favicon_emoji + '''</text></svg>">
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
         <style>
-            /* Theming Variables (Default: Dark Mode) */
             :root {
                 --bg-body: #0f172a;
                 --container-bg: #1e293b;
@@ -299,7 +281,6 @@ if all_issues:
                 --timestamp-border: #334155;
                 --timestamp-color: #38bdf8;
                 
-                /* Unified Dark HUD & Card Theme */
                 --panel-bg: #111827;
                 --panel-border: #374151;
                 --panel-label: #9ca3af;
@@ -316,7 +297,6 @@ if all_issues:
                 --toggle-border: #475569;
             }
 
-            /* Light Mode Theme Overrides */
             [data-theme="light"] {
                 --bg-body: #f8fafc;
                 --container-bg: #ffffff;
@@ -327,7 +307,6 @@ if all_issues:
                 --timestamp-border: #e2e8f0;
                 --timestamp-color: #0284c7;
                 
-                /* Unified Light HUD & Card Theme */
                 --panel-bg: #f8fafc;
                 --panel-border: #cbd5e1;
                 --panel-label: #475569;
@@ -345,9 +324,8 @@ if all_issues:
             }
 
             body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-body); color: var(--text-main); padding: 15px; margin: 0; display: flex; flex-direction: column; align-items: center; transition: background-color 0.3s ease; }
-            .container { width: 100%; max-width: 1280px; background: var(--container-bg); border: 1px solid var(--container-border); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); padding: 20px; box-sizing: border-box; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }
+            .container { width: 100%; max-width: 95vw; background: var(--container-bg); border: 1px solid var(--container-border); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15); padding: 20px; box-sizing: border-box; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }
             
-            /* Header Styling */
             .header-layout { display: flex; flex-direction: column; gap: 20px; margin-bottom: 15px; position: relative; }
             @media (min-width: 850px) {
                 .header-layout { display: grid; grid-template-columns: 1fr 340px; align-items: start; }
@@ -401,7 +379,6 @@ if all_issues:
                 opacity: 0.85;
             }
 
-            /* Controls Container (Theme Toggle & Refresh Button) */
             .header-controls {
                 display: inline-flex;
                 align-items: center;
@@ -411,7 +388,6 @@ if all_issues:
                 flex-wrap: wrap;
             }
 
-            /* Modern Segmented Toggle Switch */
             .theme-switch {
                 display: inline-flex;
                 align-items: center;
@@ -443,7 +419,6 @@ if all_issues:
                 box-shadow: 0 2px 5px rgba(0,0,0,0.15);
             }
 
-            /* Refresh Button Styling */
             .refresh-btn {
                 font-family: 'Fira Code', monospace;
                 font-size: 11px;
@@ -469,7 +444,6 @@ if all_issues:
                 cursor: not-allowed;
             }
 
-            /* Unified KPI Panel Styling */
             .kpi-panel {
                 background: var(--panel-bg);
                 border: 1px solid var(--panel-border);
@@ -501,7 +475,6 @@ if all_issues:
                 transition: all 0.3s ease;
             }
 
-            /* 2x2 Stat Grid */
             .kpi-grid {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
@@ -531,9 +504,10 @@ if all_issues:
                 color: var(--card-val);
             }
 
-            /* SVG Canvas Wrapper */
-            .svg-wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-            #sankey_svg { width: 100%; height: auto; min-width: 850px; }
+            /* Responsive SVG Wrapper */
+            .svg-wrapper { width: 100%; overflow: hidden; }
+            #sankey_svg { width: 100%; height: auto; display: block; }
+            
             .node rect { fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: var(--container-bg); stroke-width: 2px; cursor: pointer; }
             .node rect:hover { filter: brightness(1.15); }
             .node text { font-size: 11.5px; font-weight: 600; fill: var(--node-text); pointer-events: none; }
@@ -541,7 +515,6 @@ if all_issues:
             .link:hover { stroke-opacity: 0.8 !important; }
             #tooltip { position: absolute; padding: 8px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; color: white; border-radius: 6px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 100; }
             
-            /* Unified Cohort HUD Detail Card (Positioned Below Chart) */
             #cohort-hud { 
                 position: relative; 
                 background: var(--panel-bg); 
@@ -575,17 +548,14 @@ if all_issues:
     <body>
         <div class="container">
             <div class="header-layout">
-                <!-- Title & Meta Header -->
                 <div class="title-area">
                     <h2>
                         Jira Application Source Pipeline
                         <div class="header-controls">
-                            <!-- Segmented Theme Toggle Switch -->
                             <div class="theme-switch" id="theme-switch" data-active="dark" onclick="toggleTheme()">
                                 <span class="theme-option light-opt">☀️ Light</span>
                                 <span class="theme-option dark-opt">🌙 Dark</span>
                             </div>
-                            <!-- Pipedream Webhook Refresh Button -->
                             <button id="refresh-pipeline-btn" class="refresh-btn" onclick="triggerPipelineRefresh()">
                                 🔄 Refresh Jira
                             </button>
@@ -599,7 +569,6 @@ if all_issues:
                     </div>
                 </div>
 
-                <!-- Dynamic KPI Summary Card Panel -->
                 <div class="kpi-panel">
                     <div class="kpi-badge-row">
                         <span class="kpi-label">Selected Focus</span>
@@ -628,18 +597,16 @@ if all_issues:
                 </div>
             </div>
 
-            <!-- SVG Chart Wrapper -->
+            <!-- Fully responsive SVG wrapper -->
             <div class="svg-wrapper">
-                <svg id="sankey_svg" viewBox="0 0 1200 650" preserveAspectRatio="xMinYMin meet"></svg>
+                <svg id="sankey_svg" viewBox="0 0 1200 580" preserveAspectRatio="xMidYMid meet"></svg>
             </div>
 
-            <!-- Cohort HUD Detail Card (Rendered BELOW the Chart) -->
             <div id="cohort-hud"></div>
         </div>
         <div id="tooltip"></div>
 
         <script>
-            // Theme Toggle Logic
             function setTheme(theme) {
                 const body = document.body;
                 const switchEl = document.getElementById("theme-switch");
@@ -660,7 +627,6 @@ if all_issues:
                 setTheme(currentTheme === "light" ? "dark" : "light");
             }
 
-            // Check saved preference on load
             (function() {
                 const savedTheme = localStorage.getItem("theme");
                 if (savedTheme === "light") {
@@ -670,22 +636,17 @@ if all_issues:
                 }
             })();
 
-            // Pipedream Webhook Refresh Trigger Logic
             async function triggerPipelineRefresh() {
                 const btn = document.getElementById('refresh-pipeline-btn');
-                
                 btn.disabled = true;
                 btn.innerText = '⏳ Triggering...';
 
-                // Replace with your actual Pipedream webhook URL
                 const pipedreamUrl = 'https://eou1nnahbcdjjr8.m.pipedream.net';
 
                 try {
                     const response = await fetch(pipedreamUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ source: 'webpage-ui-button' })
                     });
 
@@ -693,7 +654,6 @@ if all_issues:
                         showNotification('✅ Refresh triggered successfully! GitHub Actions is now updating your live dashboard.', 'success');
                     } else {
                         showNotification('❌ Failed to trigger refresh. Check console for details.', 'error');
-                        console.error('Pipedream response error:', await response.text());
                     }
                 } catch (error) {
                     console.error('Network error:', error);
@@ -706,7 +666,6 @@ if all_issues:
                 }
             }
 
-            // Custom inline notification helper (replaces browser alert dialog)
             function showNotification(message, type) {
                 let notif = document.getElementById('custom-notification');
                 if (!notif) {
@@ -729,22 +688,18 @@ if all_issues:
                 notif.innerText = message;
                 notif.style.display = 'block';
 
-                // Auto-hide after 5 seconds
-                setTimeout(() => {
-                    notif.style.display = 'none';
-                }, 5000);
+                setTimeout(() => { notif.style.display = 'none'; }, 5000);
             }
 
             const graphData = ''' + d3_data_json + ''';
             graphData.links.forEach(l => { l.originalWidth = l.width; });
             
-            const svg = d3.select("#sankey_svg"), width = 1200, height = 650;
+            const svg = d3.select("#sankey_svg"), width = 1200, height = 580;
             svg.on("click", function(event) { if (event.target.tagName === "svg") resetSankeyEffects(); });
             
-            // Baseline metrics setup for global dashboard
             const globalTotalApps = ''' + str(total_applied) + ''';
-            const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0)) + ''';
-            const globalScreened = ''' + str(combined_screened) + ''';
+            const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Interviewed (Hiring Manager)', 0)) + ''';
+            const globalScreened = ''' + str(combined_screened + status_counts.get('Interviewed (Hiring Manager)', 0)) + ''';
             const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + status_counts.get('Screened > Rejected', 0)) + ''';
 
             function updateKPIPanel(name, color, total, active, screened, rejected) {
@@ -774,10 +729,10 @@ if all_issues:
                 updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
             }
             
-            const sankey = d3.sankey().nodeWidth(22).nodePadding(20).extent([[10, 10], [width - 180, height - 10]]);
+            const sankey = d3.sankey().nodeWidth(20).nodePadding(15).extent([[10, 10], [width - 240, height - 10]]);
             let graph = sankey(graphData);
             
-            const totalCols = 4, colWidth = (width - 220) / (totalCols - 1);
+            const totalCols = 4, colWidth = (width - 240) / (totalCols - 1);
             graph.nodes.forEach(node => { node.x0 = node.column * colWidth; node.x1 = node.x0 + sankey.nodeWidth(); });
             sankey.update(graph);
             
@@ -793,10 +748,43 @@ if all_issues:
             });
             
             const linkElements = svg.append("g").attr("fill", "none").selectAll("path").data(graph.links).enter().append("path").attr("class", "link").attr("d", d3.sankeyLinkHorizontal()).attr("stroke", (d, i) => `url(#grad-${i})`).style("stroke-width", d => Math.max(1.5, d.width));
+            
+            // Hover Tooltip logic displaying source breakdown & status attributions
+            linkElements.on("mouseover", function(event, d) {
+                d3.select(this).style("stroke-opacity", 0.85);
+                let htmlContent = `<strong>${d.source.name.split(' (')[0]} ➔ ${d.target.name.split(' (')[0]}</strong><br/>Volume: ${d.value}`;
+                
+                if (d.origins && Object.keys(d.origins).length > 0) {
+                    htmlContent += `<br/><span style="color: #38bdf8; font-size: 11px;">Sources:</span>`;
+                    for (let [src, count] of Object.entries(d.origins)) {
+                        htmlContent += `<br/>&nbsp;&nbsp;• ${src}: ${count}`;
+                    }
+                }
+                
+                if (d.status_attrs && Object.keys(d.status_attrs).length > 0) {
+                    htmlContent += `<br/><span style="color: #f43f5e; font-size: 11px;">Statuses:</span>`;
+                    for (let [st, count] of Object.entries(d.status_attrs)) {
+                        htmlContent += `<br/>&nbsp;&nbsp;• ${st}: ${count}`;
+                    }
+                }
+
+                tooltip.html(htmlContent)
+                       .style("opacity", 1)
+                       .style("left", (event.pageX + 12) + "px")
+                       .style("top", (event.pageY - 28) + "px");
+            })
+            .on("mousemove", function(event) {
+                tooltip.style("left", (event.pageX + 12) + "px").style("top", (event.pageY - 28) + "px");
+            })
+            .on("mouseout", function() {
+                d3.select(this).style("stroke-opacity", null);
+                tooltip.style("opacity", 0);
+            });
+
             const nodeElements = svg.append("g").selectAll("g").data(graph.nodes).enter().append("g").attr("class", "node").attr("transform", d => `translate(${d.x0},${d.y0})`);
             
             let isHighlighted = false;
-            nodeElements.append("rect").attr("height", d => Math.max(4, d.y1 - d.y0)).attr("width", d => d.x1 - d.x0).attr("rx", 5).attr("ry", 5).style("fill", d => d.color).on("click", function(event, clickedNode) {
+            nodeElements.append("rect").attr("height", d => Math.max(4, d.y1 - d.y0)).attr("width", d => d.x1 - d.x0).attr("rx", 4).attr("ry", 4).style("fill", d => d.color).on("click", function(event, clickedNode) {
                 event.stopPropagation();
                 const activeNodes = new Set(), activeLinks = new Set();
                 activeNodes.add(clickedNode.index);
@@ -828,29 +816,33 @@ if all_issues:
 
                     if (totalPlatformApps > 0) {
                         let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0);
+                        let interviewCount = downstreamStatuses["Interviewed (Hiring Manager)"] || 0;
                         let noResponseCount = downstreamStatuses["Applied > No Response"] || 0;
                         let rejectedCount = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0);
 
                         let pendingPctRaw = totalPlatformApps > 0 ? (pendingCount / totalPlatformApps) * 100 : 0;
+                        let interviewPctRaw = totalPlatformApps > 0 ? (interviewCount / totalPlatformApps) * 100 : 0;
                         let noResponsePctRaw = totalPlatformApps > 0 ? (noResponseCount / totalPlatformApps) * 100 : 0;
                         let rejectedPctRaw = totalPlatformApps > 0 ? (rejectedCount / totalPlatformApps) * 100 : 0;
 
-                        let totalRawSum = pendingPctRaw + noResponsePctRaw + rejectedPctRaw;
+                        let totalRawSum = pendingPctRaw + interviewPctRaw + noResponsePctRaw + rejectedPctRaw;
                         if (totalRawSum > 0 && totalRawSum !== 100) {
                             pendingPctRaw = (pendingPctRaw / totalRawSum) * 100;
+                            interviewPctRaw = (interviewPctRaw / totalRawSum) * 100;
                             noResponsePctRaw = (noResponsePctRaw / totalRawSum) * 100;
                             rejectedPctRaw = (rejectedPctRaw / totalRawSum) * 100;
                         }
 
                         let pendingPctText = pendingPctRaw.toFixed(1);
+                        let interviewPctText = interviewPctRaw.toFixed(1);
                         let noResponsePctText = noResponsePctRaw.toFixed(1);
                         let rejectedPctText = rejectedPctRaw.toFixed(1);
 
                         let screenedCount = Object.keys(downstreamStatuses)
-                            .filter(st => st.startsWith("Screened"))
+                            .filter(st => st.startsWith("Screened") || st === "Interviewed (Hiring Manager)")
                             .reduce((sum, st) => sum + downstreamStatuses[st], 0);
 
-                        updateKPIPanel(platformFilter, clickedNode.color, totalPlatformApps, pendingCount, screenedCount, rejectedCount);
+                        updateKPIPanel(platformFilter, clickedNode.color, totalPlatformApps, pendingCount + interviewCount, screenedCount, rejectedCount);
 
                         let barSegmentsHtml = "";
                         let labelsHtml = "";
@@ -858,6 +850,7 @@ if all_issues:
 
                         const segmentsData = [
                             { name: "Pending", count: pendingCount, rawPct: pendingPctRaw, textPct: pendingPctText, color: "#2ecc71" },
+                            { name: "Interviewed", count: interviewCount, rawPct: interviewPctRaw, textPct: interviewPctText, color: "#2ecc71" },
                             { name: "No Response", count: noResponseCount, rawPct: noResponsePctRaw, textPct: noResponsePctText, color: "#f1c40f" },
                             { name: "Rejected", count: rejectedCount, rawPct: rejectedPctRaw, textPct: rejectedPctText, color: "#e74c3c" }
                         ];
@@ -884,7 +877,8 @@ if all_issues:
                             <div style="border-top: 1px solid var(--panel-border); margin-top: 8px; padding-top: 8px;">
                                 <strong style="color: var(--text-main);">Terminal Status Breakdown:</strong>
                                 <ul style="margin-top: 4px; padding-left: 16px;">
-                                    ` + (pendingCount > 0 ? `<li><strong>Pending:</strong> ${pendingCount} (${pendingPctText}%)</li>` : '') + `
+                                    ` + (pendingCount > 0 ? `<li><strong>Pending / Active:</strong> ${pendingCount} (${pendingPctText}%)</li>` : '') + `
+                                    ` + (interviewCount > 0 ? `<li><strong>Interviewed:</strong> ${interviewCount} (${interviewPctText}%)</li>` : '') + `
                                     ` + (noResponseCount > 0 ? `<li><strong>No Response:</strong> ${noResponseCount} (${noResponsePctText}%)</li>` : '') + `
                                     ` + (rejectedCount > 0 ? `<li><strong>Rejected:</strong> ${rejectedCount} (${rejectedPctText}%)</li>` : '') + `
                                 </ul>
@@ -904,9 +898,9 @@ if all_issues:
 
                 } else {
                     let exactSlices = {};
-                    let targetLinksToEvaluate = clickedNode.targetLinks || [];
+                    let linksToInspect = [...(clickedNode.targetLinks || []), ...(clickedNode.sourceLinks || [])];
 
-                    targetLinksToEvaluate.forEach(l => {
+                    linksToInspect.forEach(l => {
                         if (l.origins) {
                             Object.keys(l.origins).forEach(p => {
                                 exactSlices[p] = (exactSlices[p] || 0) + l.origins[p];
@@ -941,7 +935,7 @@ if all_issues:
                     });
 
                     let totalCohortApps = Object.values(exactSlices).reduce((a, b) => a + b, 0);
-                    updateKPIPanel(focusName, clickedNode.color, totalCohortApps, 0, focusName.startsWith("Screened") ? totalCohortApps : 0, focusName.includes("Rejected") ? totalCohortApps : 0);
+                    updateKPIPanel(focusName, clickedNode.color, totalCohortApps, 0, focusName.startsWith("Screened") || focusName.includes("Interviewed") ? totalCohortApps : 0, focusName.includes("Rejected") ? totalCohortApps : 0);
 
                     let hudHtml = `<h4>${focusName} Source Breakdown</h4><ul>`;
                     let platformKeys = Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]);
@@ -961,7 +955,7 @@ if all_issues:
                 isHighlighted = true;
             });
             
-            nodeElements.append("text").attr("x", d => d.x1 - d.x0 + 12).attr("y", d => (d.y1 - d.y0) / 2).attr("dy", "0.35em").text(d => d.name);
+            nodeElements.append("text").attr("x", d => d.x1 - d.x0 + 10).attr("y", d => (d.y1 - d.y0) / 2).attr("dy", "0.35em").text(d => d.name);
             document.getElementById("local-timestamp").innerText = new Date("''' + current_utc_iso + '''").toLocaleString();
             
             updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
@@ -971,14 +965,12 @@ if all_issues:
     '''
 
     # ==========================================
-    # 7. ABSOLUTE DIRECTORY FILE WRITE
+    # 8. ABSOLUTE DIRECTORY FILE WRITE
     # ==========================================
-    print("\n6. Writing 'application_sankey.html' file locally...")
+    print("\n7. Writing 'application_sankey.html' file locally...")
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         target_path = os.path.join(script_dir, "application_sankey.html")
-        
-        print(f"   -> Enforcing Absolute Write Path: {target_path}")
         
         with open(target_path, "w", encoding="utf-8") as file:
             file.write(html_template)
