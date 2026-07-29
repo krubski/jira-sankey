@@ -127,7 +127,7 @@ if all_issues:
 
     valid_statuses = [
         'Applied', 'Applied > Pending', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
-        'Screened > Pending', 'Screened > No Response', 'Screened > Rejected', 'Interviewed (Hiring Manager)'
+        'Screened > Pending', 'Screened > No Response', 'Screened > Rejected', 'Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected'
     ]
     
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
@@ -146,10 +146,14 @@ if all_issues:
     # Calculate exact counts for individual post-screen statuses
     screened_pending_count = status_counts.get('Screened > Pending', 0)
     screened_rejected_count = status_counts.get('Screened > Rejected', 0)
-    interviewed_count = status_counts.get('Interviewed (Hiring Manager)', 0)
+    interviewed_base_count = status_counts.get('Interviewed (Hiring Manager)', 0)
+    interviewed_rejected_count = status_counts.get('Interviewed (Hiring Manager) > Rejected', 0)
     
+    # Combined Interviewed count incorporating both interviewed status and interviewed-rejected status
+    interviewed_total_count = interviewed_base_count + interviewed_rejected_count
+
     # Total screened-stage volume for Column 2 intermediate aggregation
-    combined_screened = screened_pending_count + screened_rejected_count + interviewed_count
+    combined_screened = screened_pending_count + screened_rejected_count + interviewed_total_count
 
     raw_nodes_config = [
         {"id_key": "Builtin",                "type": "source", "name": f"Builtin ({source_counts.get('Builtin', 0)})",                     "column": 0, "color": "#07006c", "count": source_counts.get('Builtin', 0)},
@@ -170,10 +174,13 @@ if all_issues:
         {"id_key": "Applied > Rejected",        "type": "status", "name": f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",        "column": 2, "color": "#e74c3c", "count": status_counts.get('Applied > Rejected', 0)},
         {"id_key": "Screened",                  "type": "status", "name": f"Screened ({combined_screened})",                                            "column": 2, "color": "#2ecc71", "count": combined_screened},
         
-        {"id_key": "Screened > Pending",               "type": "status", "name": f"Screened > Pending ({screened_pending_count})",                 "column": 3, "color": "#06b6d4", "count": screened_pending_count},
-        {"id_key": "Screened > No Response",           "type": "status", "name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})",             "column": 3, "color": "#f1c40f", "count": status_counts.get('Screened > No Response', 0)},
-        {"id_key": "Screened > Rejected",              "type": "status", "name": f"Screened > Rejected ({screened_rejected_count})",               "column": 3, "color": "#e74c3c", "count": screened_rejected_count},
-        {"id_key": "Interviewed (Hiring Manager)",     "type": "status", "name": f"Interviewed (Hiring Manager) ({interviewed_count})",            "column": 3, "color": "#2ecc71", "count": interviewed_count}
+        {"id_key": "Screened > Pending",                      "type": "status", "name": f"Screened > Pending ({screened_pending_count})",                                   "column": 3, "color": "#06b6d4", "count": screened_pending_count},
+        {"id_key": "Screened > No Response",                  "type": "status", "name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})",             "column": 3, "color": "#f1c40f", "count": status_counts.get('Screened > No Response', 0)},
+        {"id_key": "Screened > Rejected",                     "type": "status", "name": f"Screened > Rejected ({screened_rejected_count})",                                 "column": 3, "color": "#e74c3c", "count": screened_rejected_count},
+        {"id_key": "Interviewed (Hiring Manager)",            "type": "status", "name": f"Interviewed (Hiring Manager) ({interviewed_total_count})",                        "column": 3, "color": "#2ecc71", "count": interviewed_total_count},
+        
+        {"id_key": "Interviewed (Hiring Manager) > Pending",  "type": "status", "name": f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})", "column": 4, "color": "#06b6d4", "count": interviewed_base_count},
+        {"id_key": "Interviewed (Hiring Manager) > Rejected", "type": "status", "name": f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})", "column": 4, "color": "#e74c3c", "count": interviewed_rejected_count}
     ]
 
     nodes_config = [node for node in raw_nodes_config if node["count"] > 0]
@@ -184,6 +191,8 @@ if all_issues:
     source_to_node = {src: f"{src} ({source_counts.get(src, 0)})" for src in source_counts.keys()}
     shared_screened_label = f"Screened ({combined_screened})"
     
+    col3_interview_name = f"Interviewed (Hiring Manager) ({interviewed_total_count})"
+
     status_to_node = {
         'Applied': f"Applied > Pending ({applied_pending_count})",
         'Applied > Pending': f"Applied > Pending ({applied_pending_count})",
@@ -193,7 +202,8 @@ if all_issues:
         'Screened > Pending': shared_screened_label,
         'Screened > No Response': shared_screened_label,
         'Screened > Rejected': shared_screened_label,
-        'Interviewed (Hiring Manager)': shared_screened_label
+        'Interviewed (Hiring Manager)': shared_screened_label,
+        'Interviewed (Hiring Manager) > Rejected': shared_screened_label
     }
 
 
@@ -227,9 +237,17 @@ if all_issues:
             elif status == 'Screened > Rejected':
                 col_name = f"Screened > Rejected ({screened_rejected_count})"
                 links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
-            else:
-                col3_interview_name = f"Interviewed (Hiring Manager) ({interviewed_count})"
+            elif status == 'Interviewed (Hiring Manager)':
                 links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
+                col4_interview_pend_name = f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})"
+                links_raw.append({"source": col3_interview_name, "target": col4_interview_pend_name, "origin": src, "status_attr": status})
+            
+        elif status == 'Interviewed (Hiring Manager) > Rejected':
+            col4_interview_rej_name = f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})"
+            
+            links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src, "status_attr": status})
+            links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
+            links_raw.append({"source": col3_interview_name, "target": col4_interview_rej_name, "origin": src, "status_attr": status})
             
         else:
             dest_node = status_to_node.get(status)
@@ -509,8 +527,32 @@ if all_issues:
                 color: var(--card-val);
             }
 
-            .svg-wrapper { width: 100%; position: relative; }
-            #sankey_svg { width: 100%; height: 500px; display: block; }
+            .svg-wrapper { 
+                width: 100%; 
+                position: relative; 
+                overflow-x: auto;
+                overflow-y: hidden;
+                white-space: nowrap;
+            }
+
+            .svg-wrapper::-webkit-scrollbar {
+                height: 8px;
+            }
+
+            .svg-wrapper::-webkit-scrollbar-track {
+                background: var(--panel-bg);
+                border-radius: 4px;
+            }
+
+            .svg-wrapper::-webkit-scrollbar-thumb {
+                background: var(--toggle-border);
+                border-radius: 4px;
+            }
+
+            .svg-wrapper::-webkit-scrollbar-thumb:hover {
+                background: var(--text-sub);
+            }
+            #sankey_svg { width: 1700px; height: 500px; display: block; }
             
             .node rect { fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: var(--container-bg); stroke-width: 2px; cursor: pointer; }
             .node rect:hover { filter: brightness(1.15); }
@@ -602,7 +644,7 @@ if all_issues:
             </div>
 
             <div class="svg-wrapper">
-                <svg id="sankey_svg" viewBox="0 0 1200 500" preserveAspectRatio="xMidYMid meet"></svg>
+                <svg id="sankey_svg" width="1700" height="500" style="min-width: 1700px;"></svg>
             </div>
 
             <div id="cohort-hud"></div>
@@ -656,7 +698,7 @@ if all_issues:
                     if (response.ok) {
                         showNotification('✅ Refresh triggered successfully! GitHub Actions is now updating your live dashboard.', 'success');
                     } else {
-                        showNotification('❌ Failed to trigger refresh. Check console for details.', 'error');
+                        showNotification('❌ Failed to refresh. Check console.', 'error');
                     }
                 } catch (error) {
                     console.error('Network error:', error);
@@ -697,13 +739,13 @@ if all_issues:
             const graphData = ''' + d3_data_json + ''';
             graphData.links.forEach(l => { l.originalWidth = l.width; });
             
-            const svg = d3.select("#sankey_svg"), width = 1200, height = 500;
+            const svg = d3.select("#sankey_svg"), width = 1700, height = 500;
             svg.on("click", function(event) { if (event.target.tagName === "svg") resetSankeyEffects(); });
             
             const globalTotalApps = ''' + str(total_applied) + ''';
             const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Interviewed (Hiring Manager)', 0)) + ''';
-            const globalScreened = ''' + str(combined_screened + interviewed_count) + ''';
-            const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + screened_rejected_count) + ''';
+            const globalScreened = ''' + str(combined_screened) + ''';
+            const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + screened_rejected_count + interviewed_rejected_count) + ''';
 
             function updateKPIPanel(name, color, total, active, screened, rejected) {
                 const badge = d3.select("#focus-badge");
@@ -735,11 +777,11 @@ if all_issues:
             const sankey = d3.sankey()
                 .nodeWidth(20)
                 .nodePadding(12)
-                .extent([[10, 10], [width - 240, height - 10]]);
+                .extent([[60, 10], [width - 160, height - 10]]);
 
             let graph = sankey(graphData);
             
-            const totalCols = 4, colWidth = (width - 240) / (totalCols - 1);
+            const totalCols = 5, colWidth = (width - 320) / (totalCols - 1);
             graph.nodes.forEach(node => { 
                 node.x0 = node.column * colWidth; 
                 node.x1 = node.x0 + sankey.nodeWidth(); 
@@ -759,10 +801,14 @@ if all_issues:
                     "Interviewed (Hiring Manager)",
                     "Screened > No Response",
                     "Screened > Rejected"
+                ],
+                4: [
+                    "Interviewed (Hiring Manager) > Pending",
+                    "Interviewed (Hiring Manager) > Rejected"
                 ]
             };
 
-            [2, 3].forEach(colIndex => {
+            [2, 3, 4].forEach(colIndex => {
                 const colNodes = graph.nodes.filter(n => n.column === colIndex);
                 const orderArray = explicitOrders[colIndex];
                 
@@ -784,11 +830,7 @@ if all_issues:
             sankey.update(graph);
             
             graph.nodes.forEach(node => {
-                if (node.column === 1) {
-                    node.sourceLinks.sort((a, b) => {
-                        return a.target.y0 - b.target.y0;
-                    });
-                } else if (node.column === 2) {
+                if (node.column === 1 || node.column === 2 || node.column === 3) {
                     node.sourceLinks.sort((a, b) => {
                         return a.target.y0 - b.target.y0;
                     });
@@ -865,7 +907,7 @@ if all_issues:
                             
                             if (l.target.column === 2 && statusName !== "Screened") {
                                 downstreamStatuses[statusName] = (downstreamStatuses[statusName] || 0) + pCount;
-                            } else if (l.target.column === 3) {
+                            } else if (l.target.column === 3 || l.target.column === 4) {
                                 downstreamStatuses[statusName] = (downstreamStatuses[statusName] || 0) + pCount;
                             }
                         }
@@ -874,10 +916,10 @@ if all_issues:
                     let totalPlatformApps = Object.values(downstreamStatuses).reduce((a, b) => a + b, 0);
 
                     if (totalPlatformApps > 0) {
-                        let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0);
+                        let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Pending"] || 0);
                         let interviewCount = downstreamStatuses["Interviewed (Hiring Manager)"] || 0;
                         let noResponseCount = downstreamStatuses["Applied > No Response"] || 0;
-                        let rejectedCount = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0);
+                        let rejectedCount = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Rejected"] || 0);
 
                         let pendingPctRaw = totalPlatformApps > 0 ? (pendingCount / totalPlatformApps) * 100 : 0;
                         let interviewPctRaw = totalPlatformApps > 0 ? (interviewCount / totalPlatformApps) * 100 : 0;
@@ -898,7 +940,7 @@ if all_issues:
                         let rejectedPctText = rejectedPctRaw.toFixed(1);
 
                         let screenedCount = Object.keys(downstreamStatuses)
-                            .filter(st => st.startsWith("Screened") || st === "Interviewed (Hiring Manager)")
+                            .filter(st => st.startsWith("Screened") || st.startsWith("Interviewed (Hiring Manager)"))
                             .reduce((sum, st) => sum + downstreamStatuses[st], 0);
 
                         updateKPIPanel(platformFilter, clickedNode.color, totalPlatformApps, pendingCount + interviewCount, screenedCount, rejectedCount);
@@ -956,45 +998,58 @@ if all_issues:
                     updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
 
                 } else {
-                    let exactSlices = {};
-                    let linksToInspect = [...(clickedNode.targetLinks || []), ...(clickedNode.sourceLinks || [])];
+                    // UNIVERSAL RECURSIVE TRACER: Walk both upstream and downstream links transitively
+                    let queue = [clickedNode.index];
+                    let visitedNodes = new Set([clickedNode.index]);
 
-                    linksToInspect.forEach(l => {
-                        if (l.origins) {
-                            Object.keys(l.origins).forEach(p => {
-                                exactSlices[p] = (exactSlices[p] || 0) + l.origins[p];
-                            });
-                        }
-                    });
-
-                    linkElements.each(function(l) {
-                        let isRelevant = false;
-                        if (l.origins) {
-                            for (let p in exactSlices) {
-                                if (l.origins[p] > 0) {
-                                    if (l.source.column === 0 && l.target.column === 1) {
-                                        isRelevant = true;
-                                    } else if (l.source.column === 1 && l.target.column === 2) {
-                                        if (clickedNode.column === 2 && l.target.index === clickedNode.index) {
-                                            isRelevant = true;
-                                        } else if (clickedNode.column === 3 && l.target.name.startsWith("Screened")) {
-                                            isRelevant = true;
-                                        }
-                                    } else if (l.source.column === 2 && l.target.column === 3 && l.target.index === clickedNode.index) {
-                                        isRelevant = true;
-                                    }
+                    // Walk upstream
+                    while (queue.length > 0) {
+                        let currIdx = queue.shift();
+                        linkElements.each(function(l) {
+                            if (l.target.index === currIdx) {
+                                activeLinks.add(l);
+                                activeNodes.add(l.source.index);
+                                activeNodes.add(l.target.index);
+                                if (!visitedNodes.has(l.source.index)) {
+                                    visitedNodes.add(l.source.index);
+                                    queue.push(l.source.index);
                                 }
                             }
-                        }
-                        if (isRelevant) {
-                            activeLinks.add(l);
-                            activeNodes.add(l.source.index);
-                            activeNodes.add(l.target.index);
+                        });
+                    }
+
+                    // Walk downstream
+                    queue = [clickedNode.index];
+                    while (queue.length > 0) {
+                        let currIdx = queue.shift();
+                        linkElements.each(function(l) {
+                            if (l.source.index === currIdx) {
+                                activeLinks.add(l);
+                                activeNodes.add(l.source.index);
+                                activeNodes.add(l.target.index);
+                                if (!visitedNodes.has(l.target.index)) {
+                                    visitedNodes.add(l.target.index);
+                                    queue.push(l.target.index);
+                                }
+                            }
+                        });
+                    }
+
+                    // Collect source contributions strictly from links directly connected to Column 0 (Source -> Root) 
+                    // whose target/source lineage is part of the active traversal subset
+                    let exactSlices = {};
+                    linkElements.each(function(l) {
+                        if (l.source.column === 0 && activeNodes.has(l.source.index) && activeNodes.has(l.target.index)) {
+                            if (l.origins) {
+                                Object.keys(l.origins).forEach(p => {
+                                    exactSlices[p] = (exactSlices[p] || 0) + l.origins[p];
+                                });
+                            }
                         }
                     });
 
                     let totalCohortApps = Object.values(exactSlices).reduce((a, b) => a + b, 0);
-                    updateKPIPanel(focusName, clickedNode.color, totalCohortApps, 0, focusName.startsWith("Screened") || focusName.includes("Interviewed") ? totalCohortApps : 0, focusName.includes("Rejected") ? totalCohortApps : 0);
+                    updateKPIPanel(focusName, clickedNode.color, clickedNode.value || totalCohortApps, 0, focusName.startsWith("Screened") || focusName.includes("Interviewed") ? clickedNode.value : 0, focusName.includes("Rejected") ? clickedNode.value : 0);
 
                     let hudHtml = `<h4>${focusName} Source Breakdown</h4><ul>`;
                     let platformKeys = Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]);
