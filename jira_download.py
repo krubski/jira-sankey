@@ -105,7 +105,8 @@ if all_issues:
         mapping = {
             'linkedin': 'LinkedIn', 'builtin': 'Builtin', 
             'networking': 'Networking', 'indeed': 'Indeed', 
-            'dad': 'Dad', 'scoutify': 'Scoutify'
+            'dad': 'Dad', 'scoutify': 'Scoutify',
+            'recruiter': 'Recruiter'
         }
         return mapping.get(src.lower(), src)
 
@@ -163,9 +164,9 @@ if all_issues:
         {"id_key": "LinkedIn",               "type": "source", "name": f"LinkedIn ({source_counts.get('LinkedIn', 0)})",                   "column": 0, "color": "#0072b1", "count": source_counts.get('LinkedIn', 0)},
         {"id_key": "Me",                     "type": "source", "name": f"Me ({source_counts.get('Me', 0)})",                               "column": 0, "color": "#27a6f5", "count": source_counts.get('Me', 0)},
         {"id_key": "Networking",             "type": "source", "name": f"Networking ({source_counts.get('Networking', 0)})",               "column": 0, "color": "#fa9214", "count": source_counts.get('Networking', 0)},
+        {"id_key": "Recruiter",              "type": "source", "name": f"Recruiter ({source_counts.get('Recruiter', 0)})",                 "column": 0, "color": "#8b5cf6", "count": source_counts.get('Recruiter', 0)},
         {"id_key": "Scoutify",               "type": "source", "name": f"Scoutify ({source_counts.get('Scoutify', 0)})",                   "column": 0, "color": "#7bcd9d", "count": source_counts.get('Scoutify', 0)},
         {"id_key": "Simplify",               "type": "source", "name": f"Simplify ({source_counts.get('Simplify', 0)})",                   "column": 0, "color": "#3bc4d7", "count": source_counts.get('Simplify', 0)},
-        
         {"id_key": "TotalApplied",           "type": "root",   "name": f"Applied ({total_applied})",                                       "column": 1, "color": "#64748b", "count": total_applied},
         
         {"id_key": "Applied > Pending",         "type": "status", "name": f"Applied > Pending ({applied_pending_count})",                       "column": 2, "color": "#2ecc71", "count": applied_pending_count},
