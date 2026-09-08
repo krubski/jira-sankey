@@ -128,7 +128,8 @@ if all_issues:
 
     valid_statuses = [
         'Applied', 'Applied > Pending', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
-        'Screened > Pending', 'Screened > No Response', 'Screened > Rejected', 'Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected'
+        'Screened > Pending', 'Screened > No Response', 'Screened > Rejected', 'Screened > Recruiter', 
+        'Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected'
     ]
     
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
@@ -147,6 +148,7 @@ if all_issues:
     # Calculate exact counts for individual post-screen statuses
     screened_pending_count = status_counts.get('Screened > Pending', 0)
     screened_rejected_count = status_counts.get('Screened > Rejected', 0)
+    screened_recruiter_count = status_counts.get('Screened > Recruiter', 0)
     interviewed_base_count = status_counts.get('Interviewed (Hiring Manager)', 0)
     interviewed_rejected_count = status_counts.get('Interviewed (Hiring Manager) > Rejected', 0)
     
@@ -154,7 +156,7 @@ if all_issues:
     interviewed_total_count = interviewed_base_count + interviewed_rejected_count
 
     # Total screened-stage volume for Column 2 intermediate aggregation
-    combined_screened = screened_pending_count + screened_rejected_count + interviewed_total_count
+    combined_screened = screened_pending_count + screened_rejected_count + screened_recruiter_count + interviewed_total_count + status_counts.get('Screened > No Response', 0)
 
     raw_nodes_config = [
         {"id_key": "Builtin",                "type": "source", "name": f"Builtin ({source_counts.get('Builtin', 0)})",                     "column": 0, "color": "#07006c", "count": source_counts.get('Builtin', 0)},
@@ -178,6 +180,7 @@ if all_issues:
         {"id_key": "Screened > Pending",                      "type": "status", "name": f"Screened > Pending ({screened_pending_count})",                                   "column": 3, "color": "#06b6d4", "count": screened_pending_count},
         {"id_key": "Screened > No Response",                  "type": "status", "name": f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})",             "column": 3, "color": "#f1c40f", "count": status_counts.get('Screened > No Response', 0)},
         {"id_key": "Screened > Rejected",                     "type": "status", "name": f"Screened > Rejected ({screened_rejected_count})",                                 "column": 3, "color": "#e74c3c", "count": screened_rejected_count},
+        {"id_key": "Screened > Recruiter",                    "type": "status", "name": f"Screened > Recruiter ({screened_recruiter_count})",                                 "column": 3, "color": "#2ecc71", "count": screened_recruiter_count},
         {"id_key": "Interviewed (Hiring Manager)",            "type": "status", "name": f"Interviewed (Hiring Manager) ({interviewed_total_count})",                        "column": 3, "color": "#2ecc71", "count": interviewed_total_count},
         
         {"id_key": "Interviewed (Hiring Manager) > Pending",  "type": "status", "name": f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})", "column": 4, "color": "#06b6d4", "count": interviewed_base_count},
@@ -203,6 +206,7 @@ if all_issues:
         'Screened > Pending': shared_screened_label,
         'Screened > No Response': shared_screened_label,
         'Screened > Rejected': shared_screened_label,
+        'Screened > Recruiter': shared_screened_label,
         'Interviewed (Hiring Manager)': shared_screened_label,
         'Interviewed (Hiring Manager) > Rejected': shared_screened_label
     }
@@ -237,6 +241,9 @@ if all_issues:
                 links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
             elif status == 'Screened > Rejected':
                 col_name = f"Screened > Rejected ({screened_rejected_count})"
+                links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
+            elif status == 'Screened > Recruiter':
+                col_name = f"Screened > Recruiter ({screened_recruiter_count})"
                 links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
             elif status == 'Interviewed (Hiring Manager)':
                 links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
@@ -744,7 +751,7 @@ if all_issues:
             svg.on("click", function(event) { if (event.target.tagName === "svg") resetSankeyEffects(); });
             
             const globalTotalApps = ''' + str(total_applied) + ''';
-            const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Interviewed (Hiring Manager)', 0)) + ''';
+            const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Screened > Recruiter', 0) + status_counts.get('Interviewed (Hiring Manager)', 0)) + ''';
             const globalScreened = ''' + str(combined_screened) + ''';
             const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + screened_rejected_count + interviewed_rejected_count) + ''';
 
@@ -801,7 +808,8 @@ if all_issues:
                     "Screened > Pending",
                     "Interviewed (Hiring Manager)",
                     "Screened > No Response",
-                    "Screened > Rejected"
+                    "Screened > Rejected",
+                    "Screened > Recruiter"
                 ],
                 4: [
                     "Interviewed (Hiring Manager) > Pending",
@@ -917,7 +925,7 @@ if all_issues:
                     let totalPlatformApps = Object.values(downstreamStatuses).reduce((a, b) => a + b, 0);
 
                     if (totalPlatformApps > 0) {
-                        let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Pending"] || 0);
+                        let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0) + (downstreamStatuses["Screened > Recruiter"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Pending"] || 0);
                         let interviewCount = downstreamStatuses["Interviewed (Hiring Manager)"] || 0;
                         let noResponseCount = downstreamStatuses["Applied > No Response"] || 0;
                         let rejectedCount = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Rejected"] || 0);
@@ -999,11 +1007,9 @@ if all_issues:
                     updateKPIPanel("Global Pipeline", "#0284c7", globalTotalApps, globalActive, globalScreened, globalRejected);
 
                 } else {
-                    // UNIVERSAL RECURSIVE TRACER: Walk both upstream and downstream links transitively
                     let queue = [clickedNode.index];
                     let visitedNodes = new Set([clickedNode.index]);
 
-                    // Walk upstream
                     while (queue.length > 0) {
                         let currIdx = queue.shift();
                         linkElements.each(function(l) {
@@ -1019,7 +1025,6 @@ if all_issues:
                         });
                     }
 
-                    // Walk downstream
                     queue = [clickedNode.index];
                     while (queue.length > 0) {
                         let currIdx = queue.shift();
@@ -1036,8 +1041,6 @@ if all_issues:
                         });
                     }
 
-                    // Collect source contributions strictly from links directly connected to Column 0 (Source -> Root) 
-                    // whose target/source lineage is part of the active traversal subset
                     let exactSlices = {};
                     linkElements.each(function(l) {
                         if (l.source.column === 0 && activeNodes.has(l.source.index) && activeNodes.has(l.target.index)) {
