@@ -51,8 +51,6 @@ while True:
         payload['nextPageToken'] = next_page_token
 
     try:
-        response = requests.post(api_url, data=json.dumps(payload), headers=json.dumps(payload) if isinstance(payload, dict) else payload, headers=headers, auth=auth) # fallback safe
-        # Standard post request execution
         response = requests.post(api_url, data=json.dumps(payload), headers=headers, auth=auth)
         if response.status_code != 200:
             print(f'   -> Error Payload Response: {response.text}')
