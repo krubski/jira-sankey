@@ -189,7 +189,7 @@ if all_issues:
         
         {"id_key": "Interviewed (Hiring Manager) > Pending",  "type": "status", "name": f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})", "column": 4, "color": "#06b6d4", "count": interviewed_base_count},
         {"id_key": "Interviewed (Hiring Manager) > Rejected", "type": "status", "name": f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})", "column": 4, "color": "#e74c3c", "count": interviewed_rejected_count},
-        {"id_key": "Second Round (Pending)",                  "type": "status", "name": f"Second Round (Pending) ({second_round_pending_count})",               "column": 4, "color": "#06b6d4", "count": second_round_pending_count}
+        {"id_key": "Second Round (Pending)",                  "type": "status", "name": f"Second Round (Pending) ({second_round_pending_count})",               "column": 4, "color": "#2ecc71", "count": second_round_pending_count}
     ]
 
     nodes_config = [node for node in raw_nodes_config if node["count"] > 0]
