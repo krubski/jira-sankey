@@ -51,6 +51,8 @@ while True:
         payload['nextPageToken'] = next_page_token
 
     try:
+        response = requests.post(api_url, data=json.dumps(payload), headers=json.dumps(payload) if isinstance(payload, dict) else payload, headers=headers, auth=auth) # fallback safe
+        # Standard post request execution
         response = requests.post(api_url, data=json.dumps(payload), headers=headers, auth=auth)
         if response.status_code != 200:
             print(f'   -> Error Payload Response: {response.text}')
@@ -115,6 +117,8 @@ if all_issues:
     def map_and_filter_status(status_val):
         if status_val == 'Screened':
             return 'Screened > Pending'
+        elif status_val == 'Second Round':
+            return 'Second Round (Pending)'
         return status_val
 
     df_clean['Status'] = df_clean['Status'].apply(map_and_filter_status)
@@ -129,7 +133,8 @@ if all_issues:
     valid_statuses = [
         'Applied', 'Applied > Pending', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
         'Screened > Pending', 'Screened > No Response', 'Screened > Rejected', 'Screened > Recruiter', 
-        'Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected'
+        'Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected',
+        'Second Round (Pending)'
     ]
     
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
@@ -151,9 +156,10 @@ if all_issues:
     screened_recruiter_count = status_counts.get('Screened > Recruiter', 0)
     interviewed_base_count = status_counts.get('Interviewed (Hiring Manager)', 0)
     interviewed_rejected_count = status_counts.get('Interviewed (Hiring Manager) > Rejected', 0)
+    second_round_pending_count = status_counts.get('Second Round (Pending)', 0)
     
-    # Combined Interviewed count incorporating both interviewed status and interviewed-rejected status
-    interviewed_total_count = interviewed_base_count + interviewed_rejected_count
+    # Combined Interviewed count incorporating interviewed base and second round states
+    interviewed_total_count = interviewed_base_count + interviewed_rejected_count + second_round_pending_count
 
     # Total screened-stage volume for Column 2 intermediate aggregation
     combined_screened = screened_pending_count + screened_rejected_count + screened_recruiter_count + interviewed_total_count + status_counts.get('Screened > No Response', 0)
@@ -184,7 +190,8 @@ if all_issues:
         {"id_key": "Interviewed (Hiring Manager)",            "type": "status", "name": f"Interviewed (Hiring Manager) ({interviewed_total_count})",                        "column": 3, "color": "#2ecc71", "count": interviewed_total_count},
         
         {"id_key": "Interviewed (Hiring Manager) > Pending",  "type": "status", "name": f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})", "column": 4, "color": "#06b6d4", "count": interviewed_base_count},
-        {"id_key": "Interviewed (Hiring Manager) > Rejected", "type": "status", "name": f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})", "column": 4, "color": "#e74c3c", "count": interviewed_rejected_count}
+        {"id_key": "Interviewed (Hiring Manager) > Rejected", "type": "status", "name": f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})", "column": 4, "color": "#e74c3c", "count": interviewed_rejected_count},
+        {"id_key": "Second Round (Pending)",                  "type": "status", "name": f"Second Round (Pending) ({second_round_pending_count})",               "column": 4, "color": "#06b6d4", "count": second_round_pending_count}
     ]
 
     nodes_config = [node for node in raw_nodes_config if node["count"] > 0]
@@ -208,7 +215,8 @@ if all_issues:
         'Screened > Rejected': shared_screened_label,
         'Screened > Recruiter': shared_screened_label,
         'Interviewed (Hiring Manager)': shared_screened_label,
-        'Interviewed (Hiring Manager) > Rejected': shared_screened_label
+        'Interviewed (Hiring Manager) > Rejected': shared_screened_label,
+        'Second Round (Pending)': shared_screened_label
     }
 
 
@@ -230,7 +238,7 @@ if all_issues:
         
         links_raw.append({"source": src_node, "target": root_node_name, "origin": src, "status_attr": status})
 
-        if status.startswith('Screened >') or status == 'Interviewed (Hiring Manager)':
+        if status.startswith('Screened >') or status == 'Interviewed (Hiring Manager)' or status == 'Second Round (Pending)':
             links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src, "status_attr": status})
             
             if status == 'Screened > Pending':
@@ -249,6 +257,10 @@ if all_issues:
                 links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
                 col4_interview_pend_name = f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})"
                 links_raw.append({"source": col3_interview_name, "target": col4_interview_pend_name, "origin": src, "status_attr": status})
+            elif status == 'Second Round (Pending)':
+                links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
+                col4_second_round_name = f"Second Round (Pending) ({second_round_pending_count})"
+                links_raw.append({"source": col3_interview_name, "target": col4_second_round_name, "origin": src, "status_attr": status})
             
         elif status == 'Interviewed (Hiring Manager) > Rejected':
             col4_interview_rej_name = f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})"
@@ -751,7 +763,7 @@ if all_issues:
             svg.on("click", function(event) { if (event.target.tagName === "svg") resetSankeyEffects(); });
             
             const globalTotalApps = ''' + str(total_applied) + ''';
-            const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Screened > Recruiter', 0) + status_counts.get('Interviewed (Hiring Manager)', 0)) + ''';
+            const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Screened > Recruiter', 0) + status_counts.get('Interviewed (Hiring Manager)', 0) + status_counts.get('Second Round (Pending)', 0)) + ''';
             const globalScreened = ''' + str(combined_screened) + ''';
             const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + screened_rejected_count + interviewed_rejected_count) + ''';
 
@@ -813,6 +825,7 @@ if all_issues:
                 ],
                 4: [
                     "Interviewed (Hiring Manager) > Pending",
+                    "Second Round (Pending)",
                     "Interviewed (Hiring Manager) > Rejected"
                 ]
             };
@@ -925,7 +938,7 @@ if all_issues:
                     let totalPlatformApps = Object.values(downstreamStatuses).reduce((a, b) => a + b, 0);
 
                     if (totalPlatformApps > 0) {
-                        let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0) + (downstreamStatuses["Screened > Recruiter"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Pending"] || 0);
+                        let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0) + (downstreamStatuses["Screened > Recruiter"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Pending"] || 0) + (downstreamStatuses["Second Round (Pending)"] || 0);
                         let interviewCount = downstreamStatuses["Interviewed (Hiring Manager)"] || 0;
                         let noResponseCount = downstreamStatuses["Applied > No Response"] || 0;
                         let rejectedCount = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Rejected"] || 0);
@@ -949,7 +962,7 @@ if all_issues:
                         let rejectedPctText = rejectedPctRaw.toFixed(1);
 
                         let screenedCount = Object.keys(downstreamStatuses)
-                            .filter(st => st.startsWith("Screened") || st.startsWith("Interviewed (Hiring Manager)"))
+                            .filter(st => st.startsWith("Screened") || st.startsWith("Interviewed (Hiring Manager)") || st.startsWith("Second Round"))
                             .reduce((sum, st) => sum + downstreamStatuses[st], 0);
 
                         updateKPIPanel(platformFilter, clickedNode.color, totalPlatformApps, pendingCount + interviewCount, screenedCount, rejectedCount);
@@ -1053,7 +1066,7 @@ if all_issues:
                     });
 
                     let totalCohortApps = Object.values(exactSlices).reduce((a, b) => a + b, 0);
-                    updateKPIPanel(focusName, clickedNode.color, clickedNode.value || totalCohortApps, 0, focusName.startsWith("Screened") || focusName.includes("Interviewed") ? clickedNode.value : 0, focusName.includes("Rejected") ? clickedNode.value : 0);
+                    updateKPIPanel(focusName, clickedNode.color, clickedNode.value || totalCohortApps, 0, focusName.startsWith("Screened") || focusName.includes("Interviewed") || focusName.includes("Second Round") ? clickedNode.value : 0, focusName.includes("Rejected") ? clickedNode.value : 0);
 
                     let hudHtml = `<h4>${focusName} Source Breakdown</h4><ul>`;
                     let platformKeys = Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]);
