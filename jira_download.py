@@ -117,6 +117,8 @@ if all_issues:
             return 'Screened > Pending'
         elif status_val == 'Second Round':
             return 'Second Round (Pending)'
+        elif status_val == 'Third Round':
+            return 'Third Round (Pending)'
         return status_val
 
     df_clean['Status'] = df_clean['Status'].apply(map_and_filter_status)
@@ -132,7 +134,7 @@ if all_issues:
         'Applied', 'Applied > Pending', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
         'Screened > Pending', 'Screened > No Response', 'Screened > Rejected', 'Screened > Recruiter', 
         'Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected',
-        'Second Round (Pending)'
+        'Second Round (Pending)', 'Third Round (Pending)'
     ]
     
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
@@ -148,18 +150,15 @@ if all_issues:
 
     applied_pending_count = status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0)
     
-    # Calculate exact counts for individual post-screen statuses
     screened_pending_count = status_counts.get('Screened > Pending', 0)
     screened_rejected_count = status_counts.get('Screened > Rejected', 0)
     screened_recruiter_count = status_counts.get('Screened > Recruiter', 0)
     interviewed_base_count = status_counts.get('Interviewed (Hiring Manager)', 0)
     interviewed_rejected_count = status_counts.get('Interviewed (Hiring Manager) > Rejected', 0)
     second_round_pending_count = status_counts.get('Second Round (Pending)', 0)
+    third_round_pending_count = status_counts.get('Third Round (Pending)', 0)
     
-    # Combined Interviewed count incorporating interviewed base and second round states
-    interviewed_total_count = interviewed_base_count + interviewed_rejected_count + second_round_pending_count
-
-    # Total screened-stage volume for Column 2 intermediate aggregation
+    interviewed_total_count = interviewed_base_count + interviewed_rejected_count + second_round_pending_count + third_round_pending_count
     combined_screened = screened_pending_count + screened_rejected_count + screened_recruiter_count + interviewed_total_count + status_counts.get('Screened > No Response', 0)
 
     raw_nodes_config = [
@@ -189,7 +188,8 @@ if all_issues:
         
         {"id_key": "Interviewed (Hiring Manager) > Pending",  "type": "status", "name": f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})", "column": 4, "color": "#06b6d4", "count": interviewed_base_count},
         {"id_key": "Interviewed (Hiring Manager) > Rejected", "type": "status", "name": f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})", "column": 4, "color": "#e74c3c", "count": interviewed_rejected_count},
-        {"id_key": "Second Round (Pending)",                  "type": "status", "name": f"Second Round (Pending) ({second_round_pending_count})",               "column": 4, "color": "#2ecc71", "count": second_round_pending_count}
+        {"id_key": "Second Round (Pending)",                  "type": "status", "name": f"Second Round (Pending) ({second_round_pending_count})",               "column": 4, "color": "#2ecc71", "count": second_round_pending_count},
+        {"id_key": "Third Round (Pending)",                   "type": "status", "name": f"Third Round (Pending) ({third_round_pending_count})",                  "column": 5, "color": "#2ecc71", "count": third_round_pending_count}
     ]
 
     nodes_config = [node for node in raw_nodes_config if node["count"] > 0]
@@ -201,6 +201,9 @@ if all_issues:
     shared_screened_label = f"Screened ({combined_screened})"
     
     col3_interview_name = f"Interviewed (Hiring Manager) ({interviewed_total_count})"
+    col4_interview_pend_name = f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})"
+    col4_second_round_name = f"Second Round (Pending) ({second_round_pending_count})"
+    col5_third_round_name = f"Third Round (Pending) ({third_round_pending_count})"
 
     status_to_node = {
         'Applied': f"Applied > Pending ({applied_pending_count})",
@@ -208,13 +211,14 @@ if all_issues:
         'Applied > No Response': f"Applied > No Response ({status_counts.get('Applied > No Response', 0)})",
         'Applied > Position on Hold': f"Applied > Position on Hold ({status_counts.get('Applied > Position on Hold', 0)})",
         'Applied > Rejected': f"Applied > Rejected ({status_counts.get('Applied > Rejected', 0)})",
-        'Screened > Pending': shared_screened_label,
-        'Screened > No Response': shared_screened_label,
-        'Screened > Rejected': shared_screened_label,
-        'Screened > Recruiter': shared_screened_label,
-        'Interviewed (Hiring Manager)': shared_screened_label,
-        'Interviewed (Hiring Manager) > Rejected': shared_screened_label,
-        'Second Round (Pending)': shared_screened_label
+        'Screened > Pending': f"Screened > Pending ({screened_pending_count})",
+        'Screened > No Response': f"Screened > No Response ({status_counts.get('Screened > No Response', 0)})",
+        'Screened > Rejected': f"Screened > Rejected ({screened_rejected_count})",
+        'Screened > Recruiter': f"Screened > Recruiter ({screened_recruiter_count})",
+        'Interviewed (Hiring Manager)': col4_interview_pend_name,
+        'Interviewed (Hiring Manager) > Rejected': f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})",
+        'Second Round (Pending)': col4_second_round_name,
+        'Third Round (Pending)': col5_third_round_name
     }
 
 
@@ -236,7 +240,7 @@ if all_issues:
         
         links_raw.append({"source": src_node, "target": root_node_name, "origin": src, "status_attr": status})
 
-        if status.startswith('Screened >') or status == 'Interviewed (Hiring Manager)' or status == 'Second Round (Pending)':
+        if status.startswith('Screened >') or status in ['Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected', 'Second Round (Pending)', 'Third Round (Pending)']:
             links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src, "status_attr": status})
             
             if status == 'Screened > Pending':
@@ -253,19 +257,18 @@ if all_issues:
                 links_raw.append({"source": shared_screened_label, "target": col_name, "origin": src, "status_attr": status})
             elif status == 'Interviewed (Hiring Manager)':
                 links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
-                col4_interview_pend_name = f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})"
                 links_raw.append({"source": col3_interview_name, "target": col4_interview_pend_name, "origin": src, "status_attr": status})
+            elif status == 'Interviewed (Hiring Manager) > Rejected':
+                col4_interview_rej_name = f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})"
+                links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
+                links_raw.append({"source": col3_interview_name, "target": col4_interview_rej_name, "origin": src, "status_attr": status})
             elif status == 'Second Round (Pending)':
                 links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
-                col4_second_round_name = f"Second Round (Pending) ({second_round_pending_count})"
                 links_raw.append({"source": col3_interview_name, "target": col4_second_round_name, "origin": src, "status_attr": status})
-            
-        elif status == 'Interviewed (Hiring Manager) > Rejected':
-            col4_interview_rej_name = f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})"
-            
-            links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src, "status_attr": status})
-            links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
-            links_raw.append({"source": col3_interview_name, "target": col4_interview_rej_name, "origin": src, "status_attr": status})
+            elif status == 'Third Round (Pending)':
+                links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
+                links_raw.append({"source": col3_interview_name, "target": col4_second_round_name, "origin": src, "status_attr": status})
+                links_raw.append({"source": col4_second_round_name, "target": col5_third_round_name, "origin": src, "status_attr": status})
             
         else:
             dest_node = status_to_node.get(status)
@@ -570,7 +573,7 @@ if all_issues:
             .svg-wrapper::-webkit-scrollbar-thumb:hover {
                 background: var(--text-sub);
             }
-            #sankey_svg { width: 1700px; height: 500px; display: block; }
+            #sankey_svg { width: 1900px; height: 500px; display: block; }
             
             .node rect { fill-opacity: 0.95; shape-rendering: geometricPrecision; stroke: var(--container-bg); stroke-width: 2px; cursor: pointer; }
             .node rect:hover { filter: brightness(1.15); }
@@ -662,7 +665,7 @@ if all_issues:
             </div>
 
             <div class="svg-wrapper">
-                <svg id="sankey_svg" width="1700" height="500" style="min-width: 1700px;"></svg>
+                <svg id="sankey_svg" width="1900" height="500" style="min-width: 1900px;"></svg>
             </div>
 
             <div id="cohort-hud"></div>
@@ -757,11 +760,11 @@ if all_issues:
             const graphData = ''' + d3_data_json + ''';
             graphData.links.forEach(l => { l.originalWidth = l.width; });
             
-            const svg = d3.select("#sankey_svg"), width = 1700, height = 500;
+            const svg = d3.select("#sankey_svg"), width = 1900, height = 500;
             svg.on("click", function(event) { if (event.target.tagName === "svg") resetSankeyEffects(); });
             
             const globalTotalApps = ''' + str(total_applied) + ''';
-            const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Screened > Recruiter', 0) + status_counts.get('Interviewed (Hiring Manager)', 0) + status_counts.get('Second Round (Pending)', 0)) + ''';
+            const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Screened > Recruiter', 0) + status_counts.get('Interviewed (Hiring Manager)', 0) + status_counts.get('Second Round (Pending)', 0) + status_counts.get('Third Round (Pending)', 0)) + ''';
             const globalScreened = ''' + str(combined_screened) + ''';
             const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + screened_rejected_count + interviewed_rejected_count) + ''';
 
@@ -799,7 +802,7 @@ if all_issues:
 
             let graph = sankey(graphData);
             
-            const totalCols = 5, colWidth = (width - 320) / (totalCols - 1);
+            const totalCols = 6, colWidth = (width - 320) / (totalCols - 1);
             graph.nodes.forEach(node => { 
                 node.x0 = node.column * colWidth; 
                 node.x1 = node.x0 + sankey.nodeWidth(); 
@@ -825,12 +828,15 @@ if all_issues:
                     "Interviewed (Hiring Manager) > Pending",
                     "Second Round (Pending)",
                     "Interviewed (Hiring Manager) > Rejected"
+                ],
+                5: [
+                    "Third Round (Pending)"
                 ]
             };
 
-            [2, 3, 4].forEach(colIndex => {
+            [2, 3, 4, 5].forEach(colIndex => {
                 const colNodes = graph.nodes.filter(n => n.column === colIndex);
-                const orderArray = explicitOrders[colIndex];
+                const orderArray = explicitOrders[colIndex] || [];
                 
                 colNodes.sort((a, b) => {
                     let aClean = a.name.split(" (")[0];
@@ -850,7 +856,7 @@ if all_issues:
             sankey.update(graph);
             
             graph.nodes.forEach(node => {
-                if (node.column === 1 || node.column === 2 || node.column === 3) {
+                if (node.column >= 1 && node.column <= 4) {
                     node.sourceLinks.sort((a, b) => {
                         return a.target.y0 - b.target.y0;
                     });
@@ -927,7 +933,7 @@ if all_issues:
                             
                             if (l.target.column === 2 && statusName !== "Screened") {
                                 downstreamStatuses[statusName] = (downstreamStatuses[statusName] || 0) + pCount;
-                            } else if (l.target.column === 3 || l.target.column === 4) {
+                            } else if (l.target.column >= 3) {
                                 downstreamStatuses[statusName] = (downstreamStatuses[statusName] || 0) + pCount;
                             }
                         }
@@ -936,7 +942,7 @@ if all_issues:
                     let totalPlatformApps = Object.values(downstreamStatuses).reduce((a, b) => a + b, 0);
 
                     if (totalPlatformApps > 0) {
-                        let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0) + (downstreamStatuses["Screened > Recruiter"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Pending"] || 0) + (downstreamStatuses["Second Round (Pending)"] || 0);
+                        let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0) + (downstreamStatuses["Screened > Recruiter"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Pending"] || 0) + (downstreamStatuses["Second Round (Pending)"] || 0) + (downstreamStatuses["Third Round (Pending)"] || 0);
                         let interviewCount = downstreamStatuses["Interviewed (Hiring Manager)"] || 0;
                         let noResponseCount = downstreamStatuses["Applied > No Response"] || 0;
                         let rejectedCount = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Rejected"] || 0);
@@ -960,7 +966,7 @@ if all_issues:
                         let rejectedPctText = rejectedPctRaw.toFixed(1);
 
                         let screenedCount = Object.keys(downstreamStatuses)
-                            .filter(st => st.startsWith("Screened") || st.startsWith("Interviewed (Hiring Manager)") || st.startsWith("Second Round"))
+                            .filter(st => st.startsWith("Screened") || st.startsWith("Interviewed (Hiring Manager)") || st.startsWith("Second Round") || st.startsWith("Third Round"))
                             .reduce((sum, st) => sum + downstreamStatuses[st], 0);
 
                         updateKPIPanel(platformFilter, clickedNode.color, totalPlatformApps, pendingCount + interviewCount, screenedCount, rejectedCount);
@@ -1064,7 +1070,7 @@ if all_issues:
                     });
 
                     let totalCohortApps = Object.values(exactSlices).reduce((a, b) => a + b, 0);
-                    updateKPIPanel(focusName, clickedNode.color, clickedNode.value || totalCohortApps, 0, focusName.startsWith("Screened") || focusName.includes("Interviewed") || focusName.includes("Second Round") ? clickedNode.value : 0, focusName.includes("Rejected") ? clickedNode.value : 0);
+                    updateKPIPanel(focusName, clickedNode.color, clickedNode.value || totalCohortApps, 0, focusName.startsWith("Screened") || focusName.includes("Interviewed") || focusName.includes("Second Round") || focusName.includes("Third Round") ? clickedNode.value : 0, focusName.includes("Rejected") ? clickedNode.value : 0);
 
                     let hudHtml = `<h4>${focusName} Source Breakdown</h4><ul>`;
                     let platformKeys = Object.keys(exactSlices).sort((a,b) => exactSlices[b] - exactSlices[a]);
