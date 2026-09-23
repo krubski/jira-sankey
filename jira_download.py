@@ -134,7 +134,7 @@ if all_issues:
         'Applied', 'Applied > Pending', 'Applied > No Response', 'Applied > Position on Hold', 'Applied > Rejected', 
         'Screened > Pending', 'Screened > No Response', 'Screened > Rejected', 'Screened > Recruiter', 
         'Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected',
-        'Second Round (Pending)', 'Third Round (Pending)'
+        'Second Round (Pending)', 'Third Round (Pending)', 'Third Round > Rejected'
     ]
     
     df_filtered = df_clean[df_clean['Status'].isin(valid_statuses)]
@@ -157,8 +157,9 @@ if all_issues:
     interviewed_rejected_count = status_counts.get('Interviewed (Hiring Manager) > Rejected', 0)
     second_round_pending_count = status_counts.get('Second Round (Pending)', 0)
     third_round_pending_count = status_counts.get('Third Round (Pending)', 0)
+    third_round_rejected_count = status_counts.get('Third Round > Rejected', 0)
     
-    interviewed_total_count = interviewed_base_count + interviewed_rejected_count + second_round_pending_count + third_round_pending_count
+    interviewed_total_count = interviewed_base_count + interviewed_rejected_count + second_round_pending_count + third_round_pending_count + third_round_rejected_count
     combined_screened = screened_pending_count + screened_rejected_count + screened_recruiter_count + interviewed_total_count + status_counts.get('Screened > No Response', 0)
 
     raw_nodes_config = [
@@ -189,7 +190,8 @@ if all_issues:
         {"id_key": "Interviewed (Hiring Manager) > Pending",  "type": "status", "name": f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})", "column": 4, "color": "#06b6d4", "count": interviewed_base_count},
         {"id_key": "Interviewed (Hiring Manager) > Rejected", "type": "status", "name": f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})", "column": 4, "color": "#e74c3c", "count": interviewed_rejected_count},
         {"id_key": "Second Round (Pending)",                  "type": "status", "name": f"Second Round (Pending) ({second_round_pending_count})",               "column": 4, "color": "#2ecc71", "count": second_round_pending_count},
-        {"id_key": "Third Round (Pending)",                   "type": "status", "name": f"Third Round (Pending) ({third_round_pending_count})",                  "column": 5, "color": "#2ecc71", "count": third_round_pending_count}
+        {"id_key": "Third Round (Pending)",                   "type": "status", "name": f"Third Round (Pending) ({third_round_pending_count})",                  "column": 5, "color": "#2ecc71", "count": third_round_pending_count},
+        {"id_key": "Third Round > Rejected",                  "type": "status", "name": f"Third Round > Rejected ({third_round_rejected_count})",               "column": 5, "color": "#e74c3c", "count": third_round_rejected_count}
     ]
 
     nodes_config = [node for node in raw_nodes_config if node["count"] > 0]
@@ -204,6 +206,7 @@ if all_issues:
     col4_interview_pend_name = f"Interviewed (Hiring Manager) > Pending ({interviewed_base_count})"
     col4_second_round_name = f"Second Round (Pending) ({second_round_pending_count})"
     col5_third_round_name = f"Third Round (Pending) ({third_round_pending_count})"
+    col5_third_round_rejected_name = f"Third Round > Rejected ({third_round_rejected_count})"
 
     status_to_node = {
         'Applied': f"Applied > Pending ({applied_pending_count})",
@@ -218,7 +221,8 @@ if all_issues:
         'Interviewed (Hiring Manager)': col4_interview_pend_name,
         'Interviewed (Hiring Manager) > Rejected': f"Interviewed (Hiring Manager) > Rejected ({interviewed_rejected_count})",
         'Second Round (Pending)': col4_second_round_name,
-        'Third Round (Pending)': col5_third_round_name
+        'Third Round (Pending)': col5_third_round_name,
+        'Third Round > Rejected': col5_third_round_rejected_name
     }
 
 
@@ -240,7 +244,7 @@ if all_issues:
         
         links_raw.append({"source": src_node, "target": root_node_name, "origin": src, "status_attr": status})
 
-        if status.startswith('Screened >') or status in ['Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected', 'Second Round (Pending)', 'Third Round (Pending)']:
+        if status.startswith('Screened >') or status in ['Interviewed (Hiring Manager)', 'Interviewed (Hiring Manager) > Rejected', 'Second Round (Pending)', 'Third Round (Pending)', 'Third Round > Rejected']:
             links_raw.append({"source": root_node_name, "target": shared_screened_label, "origin": src, "status_attr": status})
             
             if status == 'Screened > Pending':
@@ -269,6 +273,10 @@ if all_issues:
                 links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
                 links_raw.append({"source": col3_interview_name, "target": col4_second_round_name, "origin": src, "status_attr": status})
                 links_raw.append({"source": col4_second_round_name, "target": col5_third_round_name, "origin": src, "status_attr": status})
+            elif status == 'Third Round > Rejected':
+                links_raw.append({"source": shared_screened_label, "target": col3_interview_name, "origin": src, "status_attr": status})
+                links_raw.append({"source": col3_interview_name, "target": col4_second_round_name, "origin": src, "status_attr": status})
+                links_raw.append({"source": col4_second_round_name, "target": col5_third_round_rejected_name, "origin": src, "status_attr": status})
             
         else:
             dest_node = status_to_node.get(status)
@@ -579,7 +587,7 @@ if all_issues:
             .node rect:hover { filter: brightness(1.15); }
             .node text { font-size: 11.5px; font-weight: 600; fill: var(--node-text); pointer-events: none; }
             .link { fill: none; stroke-opacity: 0.4; transition: stroke-opacity 0.2s, opacity 0.2s, stroke-width 0.2s; }
-            .link:hover { stroke-opacity: 0.8 !important; }
+            .link:hover { stroke-opacity: 0.85 !important; }
             #tooltip { position: absolute; padding: 8px 12px; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; color: white; border-radius: 6px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 100; }
             
             #cohort-hud { 
@@ -766,7 +774,7 @@ if all_issues:
             const globalTotalApps = ''' + str(total_applied) + ''';
             const globalActive = ''' + str(status_counts.get('Applied', 0) + status_counts.get('Applied > Pending', 0) + status_counts.get('Screened > Pending', 0) + status_counts.get('Screened > Recruiter', 0) + status_counts.get('Interviewed (Hiring Manager)', 0) + status_counts.get('Second Round (Pending)', 0) + status_counts.get('Third Round (Pending)', 0)) + ''';
             const globalScreened = ''' + str(combined_screened) + ''';
-            const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + screened_rejected_count + interviewed_rejected_count) + ''';
+            const globalRejected = ''' + str(status_counts.get('Applied > Rejected', 0) + screened_rejected_count + interviewed_rejected_count + third_round_rejected_count) + ''';
 
             function updateKPIPanel(name, color, total, active, screened, rejected) {
                 const badge = d3.select("#focus-badge");
@@ -830,7 +838,8 @@ if all_issues:
                     "Interviewed (Hiring Manager) > Rejected"
                 ],
                 5: [
-                    "Third Round (Pending)"
+                    "Third Round (Pending)",
+                    "Third Round > Rejected"
                 ]
             };
 
@@ -945,7 +954,7 @@ if all_issues:
                         let pendingCount = (downstreamStatuses["Applied > Pending"] || 0) + (downstreamStatuses["Screened > Pending"] || 0) + (downstreamStatuses["Screened > Recruiter"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Pending"] || 0) + (downstreamStatuses["Second Round (Pending)"] || 0) + (downstreamStatuses["Third Round (Pending)"] || 0);
                         let interviewCount = downstreamStatuses["Interviewed (Hiring Manager)"] || 0;
                         let noResponseCount = downstreamStatuses["Applied > No Response"] || 0;
-                        let rejectedCount = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Rejected"] || 0);
+                        let rejectedCount = (downstreamStatuses["Applied > Rejected"] || 0) + (downstreamStatuses["Screened > Rejected"] || 0) + (downstreamStatuses["Interviewed (Hiring Manager) > Rejected"] || 0) + (downstreamStatuses["Third Round > Rejected"] || 0);
 
                         let pendingPctRaw = totalPlatformApps > 0 ? (pendingCount / totalPlatformApps) * 100 : 0;
                         let interviewPctRaw = totalPlatformApps > 0 ? (interviewCount / totalPlatformApps) * 100 : 0;
